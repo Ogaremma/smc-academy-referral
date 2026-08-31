@@ -5,4 +5,4 @@ extraPaths = ["."]
 extraPaths = ["."]
 
 [tool.pytest.ini_options]
-addopts = "-p no:cacheprovider --basetemp=.pytest-tmp"
+addopts = "-p no:cacheprovider"

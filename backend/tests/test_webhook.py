@@ -170,4 +170,6 @@ async def test_successful_referral_and_idempotency(client: AsyncClient, db_sessi
     # Verified referral count must be exactly 1
     assert dash_data["total_verified_referrals"] == 1
     assert len(dash_data["recent_verified_activity"]) == 1
-    assert dash_data["recent_verified_activity"][0]["candidate_email"] == "student1@smcacademy.org"
+    activity = dash_data["recent_verified_activity"][0]
+    assert "candidate_email" not in activity
+    assert "candidate_telegram_handle" not in activity

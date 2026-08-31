@@ -23,8 +23,6 @@ export interface UserProfileResponse {
 
 export interface ReferralActivity {
   id: number;
-  candidate_email: string | null;
-  candidate_telegram_handle: string | null;
   status: string;
   verified_at: string | null;
 }

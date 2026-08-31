@@ -61,8 +61,6 @@ async def get_user_dashboard(
     activity_items = [
         ReferralActivityItem(
             id=ref.id,
-            candidate_email=ref.candidate_email,
-            candidate_telegram_handle=ref.candidate_telegram_handle,
             status=ref.status,
             verified_at=ref.verified_at,
         )
