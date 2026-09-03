@@ -7,7 +7,11 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import InvalidTokenError, TelegramAuthError
-from app.core.security import create_access_token, decode_access_token, validate_telegram_init_data
+from app.core.security import (
+    create_access_token,
+    decode_access_token,
+    validate_telegram_init_data_context,
+)
 from app.db.models import ReferralCode, User
 from app.db.session import get_db
 from app.schemas.user import TelegramAuthRequest, TokenResponse, UserRead
@@ -64,7 +68,7 @@ async def authenticate_telegram_user(
     Validates HMAC-SHA256 signature, creates/fetches user, and returns a JWT token.
     """
     try:
-        telegram_user_data = validate_telegram_init_data(
+        telegram_user_data, signed_start_param = validate_telegram_init_data_context(
             init_data_str=payload.init_data,
             bot_token=settings.BOT_TOKEN,
         )
@@ -74,7 +78,11 @@ async def authenticate_telegram_user(
             detail=f"Telegram authentication failed: {str(e)}",
         )
 
-    user, ref_code = await get_or_create_telegram_user(db, telegram_user_data)
+    user, ref_code = await get_or_create_telegram_user(
+        db,
+        telegram_user_data,
+        referral_start_param=signed_start_param,
+    )
 
     access_token = create_access_token(
         data={"sub": str(user.id), "telegram_id": user.telegram_id}

@@ -6,12 +6,14 @@ export interface TelegramHapticFeedback {
 
 export interface TelegramWebApp {
   initData: string;
+  initDataUnsafe?: { start_param?: string };
   colorScheme: 'light' | 'dark';
   themeParams: Record<string, string | undefined>;
   HapticFeedback?: TelegramHapticFeedback;
   ready(): void;
   expand(): void;
   openTelegramLink(url: string): void;
+  openLink?(url: string): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
 }

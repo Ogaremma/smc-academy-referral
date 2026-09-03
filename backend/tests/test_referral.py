@@ -47,7 +47,7 @@ async def test_invalid_public_referral_code_returns_404(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_link_uses_backend_redirect(client: AsyncClient):
+async def test_dashboard_link_uses_backend_google_form_redirect(client: AsyncClient):
     init_data = create_telegram_init_data(user_dict={"id": 333444555, "username": "carol"})
     auth_res = await client.post("/api/v1/auth/telegram", json={"init_data": init_data})
     token = auth_res.json()["access_token"]
@@ -60,3 +60,43 @@ async def test_dashboard_link_uses_backend_redirect(client: AsyncClient):
 
     assert res.status_code == 200
     assert res.json()["personal_referral_link"] == f"http://localhost:8000/r/{ref_code}"
+
+
+@pytest.mark.asyncio
+async def test_multiple_form_submissions_increase_referrer_count(client: AsyncClient):
+    init_data = create_telegram_init_data(user_dict={"id": 444555666, "username": "referrer"})
+    auth_res = await client.post("/api/v1/auth/telegram", json={"init_data": init_data})
+    assert auth_res.status_code == 200
+    auth_data = auth_res.json()
+    token = auth_data["access_token"]
+    code = auth_data["referral_code"]
+
+    for index in range(3):
+        response = await client.post(
+            "/api/v1/webhooks/google-form",
+            headers={"X-Webhook-Secret": "test_super_secret_webhook_key_123"},
+            json={
+                "response_id": f"multiple-form-response-{index}",
+                "referral_code": code,
+                "submitted_at": "2026-09-01T12:00:00Z",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+    duplicate = await client.post(
+        "/api/v1/webhooks/google-form",
+        headers={"X-Webhook-Secret": "test_super_secret_webhook_key_123"},
+        json={
+            "response_id": "multiple-form-response-1",
+            "referral_code": code,
+            "submitted_at": "2026-09-01T12:00:00Z",
+        },
+    )
+    assert duplicate.json()["success"] is True
+
+    dashboard = await client.get(
+        "/api/v1/user/dashboard",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert dashboard.json()["total_verified_referrals"] == 3

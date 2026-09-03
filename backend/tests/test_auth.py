@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import REFERRAL_CODE_ALPHABET, generate_referral_code
 from app.db.models import ReferralCode, User
+from app.services.user_service import get_or_create_telegram_user
 from tests.conftest import TEST_BOT_TOKEN, create_telegram_init_data
 
 
@@ -124,3 +125,22 @@ async def test_duplicate_user_handling(client: AsyncClient, db_session: AsyncSes
     stmt = select(User).where(User.telegram_id == 999888777)
     users = (await db_session.execute(stmt)).scalars().all()
     assert len(users) == 1
+
+
+@pytest.mark.asyncio
+async def test_existing_user_returns_loaded_referral_code(db_session: AsyncSession):
+    telegram_id = 777666555
+
+    _, created_code = await get_or_create_telegram_user(
+        db_session,
+        {"id": telegram_id, "username": "original_name"},
+    )
+    original_code = created_code.code
+
+    user, existing_code = await get_or_create_telegram_user(
+        db_session,
+        {"id": telegram_id, "username": "updated_name"},
+    )
+
+    assert existing_code.code == original_code
+    assert user.referral_code.code == original_code

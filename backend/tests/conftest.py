@@ -37,6 +37,7 @@ def create_telegram_init_data(
     auth_date: int = None,
     tamper_hash: bool = False,
     omit_hash: bool = False,
+    start_param: str = None,
 ) -> str:
     """Helper to generate cryptographically valid Telegram initData query strings."""
     if user_dict is None:
@@ -55,6 +56,8 @@ def create_telegram_init_data(
         "auth_date": str(auth_date),
         "user": user_json,
     }
+    if start_param:
+        params["start_param"] = start_param
 
     sorted_items = sorted(params.items(), key=lambda x: x[0])
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted_items)
@@ -74,12 +77,11 @@ def create_telegram_init_data(
     if tamper_hash:
         calculated_hash = "deadbeef1234567890abcdefdeadbeef1234567890abcdefdeadbeef12345678"
 
-    encoded_user = urllib.parse.quote(user_json)
-
     if omit_hash:
-        return f"auth_date={auth_date}&user={encoded_user}"
+        return urllib.parse.urlencode(params)
 
-    return f"auth_date={auth_date}&user={encoded_user}&hash={calculated_hash}"
+    params["hash"] = calculated_hash
+    return urllib.parse.urlencode(params)
 
 
 @pytest_asyncio.fixture

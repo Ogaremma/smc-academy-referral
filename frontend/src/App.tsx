@@ -5,6 +5,7 @@ import { DashboardSkeleton } from '@/components/DashboardSkeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { ReferralCodeCard } from '@/components/ReferralCodeCard';
 import { ReferralLinkCard } from '@/components/ReferralLinkCard';
+import { RegistrationFormCard } from '@/components/RegistrationFormCard';
 import { StatCard } from '@/components/StatCard';
 
 function App() {
@@ -40,6 +41,9 @@ function App() {
         </section>
 
         <section className="mt-4 grid gap-4" aria-label="Referral tools">
+          {dashboard.registration_form_url && (
+            <RegistrationFormCard url={dashboard.registration_form_url} />
+          )}
           <ReferralCodeCard code={profile.referral_code} />
           <ReferralLinkCard link={dashboard.personal_referral_link} />
         </section>

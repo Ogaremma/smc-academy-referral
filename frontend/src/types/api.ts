@@ -31,6 +31,7 @@ export interface DashboardResponse {
   total_verified_referrals: number;
   pending_referrals: number;
   personal_referral_link: string;
+  registration_form_url: string | null;
   recent_verified_activity: ReferralActivity[];
 }
 

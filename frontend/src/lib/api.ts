@@ -30,10 +30,10 @@ function authenticatedHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function authenticateTelegram(initData: string): Promise<AuthResponse> {
+export async function authenticateTelegram(initData: string, startParam?: string): Promise<AuthResponse> {
   const response = await request<AuthResponse>('/api/v1/auth/telegram', {
     method: 'POST',
-    body: JSON.stringify({ init_data: initData }),
+    body: JSON.stringify({ init_data: initData, start_param: startParam || null }),
   });
   sessionToken.set(response.access_token);
   return response;

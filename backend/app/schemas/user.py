@@ -5,6 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class TelegramAuthRequest(BaseModel):
     init_data: str = Field(..., description="Raw initData string received from Telegram Mini App SDK")
+    start_param: Optional[str] = Field(
+        None,
+        description="Telegram Mini App launch parameter; signed initData remains authoritative",
+    )
 
 
 class UserRead(BaseModel):

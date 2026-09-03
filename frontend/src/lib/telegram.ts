@@ -23,6 +23,22 @@ export function hapticTap(): void {
   getTelegramWebApp()?.HapticFeedback?.impactOccurred('light');
 }
 
+export function getTelegramStartParam(webApp: TelegramWebApp): string | undefined {
+  const signedStartParam = webApp.initDataUnsafe?.start_param;
+  if (signedStartParam) return signedStartParam;
+
+  return new URLSearchParams(window.location.search).get('tgWebAppStartParam') ?? undefined;
+}
+
+export function openExternalUrl(url: string): void {
+  const webApp = getTelegramWebApp();
+  if (webApp?.openLink) {
+    webApp.openLink(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 export function shareOnTelegram(url: string): void {
   const shareUrl = new URL('https://t.me/share/url');
   shareUrl.searchParams.set('url', url);

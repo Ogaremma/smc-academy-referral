@@ -1,7 +1,18 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -13,7 +24,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     telegram_id: Mapped[int] = mapped_column(
-        BigInteger, unique=True, index=True, nullable=False
+        BigInteger, unique=True, nullable=False
     )
     username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     first_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -38,18 +49,33 @@ class User(Base):
     referrals: Mapped[List["Referral"]] = relationship(
         "Referral", back_populates="referrer", cascade="all, delete-orphan"
     )
+    referral_attribution: Mapped[Optional["TelegramReferral"]] = relationship(
+        "TelegramReferral",
+        foreign_keys="TelegramReferral.referred_user_id",
+        back_populates="referred_user",
+        uselist=False,
+    )
+    referred_users: Mapped[List["TelegramReferral"]] = relationship(
+        "TelegramReferral",
+        foreign_keys="TelegramReferral.referrer_user_id",
+        back_populates="referrer",
+        overlaps="referral_code,telegram_referrals",
+    )
 
 
 class ReferralCode(Base):
     """User unique referral code model."""
     __tablename__ = "referral_codes"
+    __table_args__ = (
+        UniqueConstraint("id", "user_id", name="uq_referral_codes_id_user_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     code: Mapped[str] = mapped_column(
-        String(32), unique=True, index=True, nullable=False
+        String(32), unique=True, nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -67,6 +93,61 @@ class ReferralCode(Base):
     user: Mapped["User"] = relationship("User", back_populates="referral_code")
     referrals: Mapped[List["Referral"]] = relationship(
         "Referral", back_populates="referral_code"
+    )
+    telegram_referrals: Mapped[List["TelegramReferral"]] = relationship(
+        "TelegramReferral",
+        back_populates="referral_code",
+        overlaps="referred_users,referrer",
+    )
+
+
+class TelegramReferral(Base):
+    """Immutable Telegram-native referrer attribution for a user."""
+    __tablename__ = "telegram_referrals"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["referral_code_id", "referrer_user_id"],
+            ["referral_codes.id", "referral_codes.user_id"],
+            name="fk_telegram_referrals_code_owner",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "referred_user_id",
+            name="uq_telegram_referrals_referred_user_id",
+        ),
+        CheckConstraint(
+            "referrer_user_id <> referred_user_id",
+            name="ck_telegram_referrals_no_self_referral",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    referrer_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    referred_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    referral_code_id: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    referrer: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[referrer_user_id],
+        back_populates="referred_users",
+        overlaps="referral_code,telegram_referrals",
+    )
+    referred_user: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[referred_user_id],
+        back_populates="referral_attribution",
+    )
+    referral_code: Mapped["ReferralCode"] = relationship(
+        "ReferralCode",
+        back_populates="telegram_referrals",
+        overlaps="referred_users,referrer",
     )
 
 
@@ -90,7 +171,7 @@ class Referral(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     google_form_response_id: Mapped[str] = mapped_column(
-        String(128), unique=True, index=True, nullable=False
+        String(128), unique=True, nullable=False
     )
     candidate_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     candidate_telegram_handle: Mapped[Optional[str]] = mapped_column(

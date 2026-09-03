@@ -15,4 +15,5 @@ class DashboardResponse(BaseModel):
     total_verified_referrals: int
     pending_referrals: int = 0
     personal_referral_link: str
+    registration_form_url: Optional[str] = None
     recent_verified_activity: List[ReferralActivityItem]

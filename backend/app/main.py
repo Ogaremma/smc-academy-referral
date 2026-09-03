@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import main_router
 from app.config import settings
 
+settings.validate_production()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

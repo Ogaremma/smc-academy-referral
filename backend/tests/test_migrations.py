@@ -52,7 +52,14 @@ def test_alembic_initial_migration_creates_schema(tmp_path, monkeypatch):
         else:
             raise AssertionError("referral status check constraint was not enforced")
 
-    assert {"users", "referral_codes", "referrals", "webhook_logs", "alembic_version"} <= tables
+    assert {
+        "users",
+        "referral_codes",
+        "referrals",
+        "telegram_referrals",
+        "webhook_logs",
+        "alembic_version",
+    } <= tables
     assert "google_form_response_id" in referral_columns
     assert "registered_at" in referral_columns
     assert "ck_referrals_status" in referral_schema

@@ -34,6 +34,20 @@ def validate_telegram_init_data(
     """
     Validate Telegram Mini App initData according to Telegram's HMAC-SHA256 signature algorithm.
     """
+    user_data, _ = validate_telegram_init_data_context(
+        init_data_str=init_data_str,
+        bot_token=bot_token,
+        max_age_seconds=max_age_seconds,
+    )
+    return user_data
+
+
+def validate_telegram_init_data_context(
+    init_data_str: str,
+    bot_token: str,
+    max_age_seconds: int = 86400,
+) -> tuple[Dict[str, Any], Optional[str]]:
+    """Validate Telegram initData and return its signed user and start parameter."""
     if not init_data_str:
         raise TelegramAuthError("initData string is empty")
 
@@ -92,7 +106,8 @@ def validate_telegram_init_data(
     except Exception:
         raise TelegramAuthError("Invalid user JSON structure in initData")
 
-    return user_data
+    start_param = param_dict.get("start_param")
+    return user_data, start_param.strip().upper() if start_param else None
 
 
 def create_access_token(

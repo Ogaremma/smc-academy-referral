@@ -7,13 +7,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.db.models import Referral, ReferralCode, WebhookLog
+from app.db.models import Referral, ReferralCode, TelegramReferral, WebhookLog
 from app.schemas.referral import DashboardResponse, ReferralActivityItem
 from app.schemas.webhook import GoogleFormWebhookPayload
 
 
 def build_personal_referral_link(code: str) -> str:
-    """Construct the public backend referral URL shown on the dashboard."""
+    """Construct the public backend redirect link shared with prospective students."""
+    return f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/r/{code}"
+
+
+def build_registration_form_url(code: str) -> str:
+    """Construct the backend redirect that opens the existing registration form."""
     return f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/r/{code}"
 
 
@@ -58,6 +63,16 @@ async def get_user_dashboard(
     res_activity = await db.execute(stmt_activity)
     referrals_list = res_activity.scalars().all()
 
+    attribution_result = await db.execute(
+        select(ReferralCode.code)
+        .join(
+            TelegramReferral,
+            TelegramReferral.referral_code_id == ReferralCode.id,
+        )
+        .where(TelegramReferral.referred_user_id == user_id)
+    )
+    attributed_code = attribution_result.scalar_one_or_none()
+
     activity_items = [
         ReferralActivityItem(
             id=ref.id,
@@ -73,6 +88,11 @@ async def get_user_dashboard(
         total_verified_referrals=total_verified,
         pending_referrals=total_pending,
         personal_referral_link=referral_link,
+        registration_form_url=(
+            build_registration_form_url(attributed_code)
+            if attributed_code
+            else None
+        ),
         recent_verified_activity=activity_items,
     )
 
