@@ -8,7 +8,7 @@ const API_BASE_URL = configuredApiUrl && (!configuredApiUrl.startsWith('http://l
   : isLocalHost ? 'http://localhost:8000' : 'https://smc-academy-referral.onrender.com';
 
 class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly url: string) {
     super(message);
     this.name = 'ApiError';
   }
@@ -17,15 +17,27 @@ class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!API_BASE_URL) throw new Error('The application is not configured correctly.');
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const url = `${API_BASE_URL}${path}`;
+  try {
+    const response = await fetch(url, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options.headers },
   });
 
-  if (!response.ok) {
-    throw new ApiError(response.status, 'We could not complete that request.');
+    const body = await response.text();
+    if (!response.ok) {
+      let detail = 'We could not complete that request.';
+      try { const parsed = JSON.parse(body) as { detail?: string }; if (parsed.detail) detail = parsed.detail; } catch { /* non-JSON response */ }
+      console.error('[api]', { url, status: response.status, detail });
+      throw new ApiError(response.status, detail, url);
+    }
+    console.debug('[api]', { url, status: response.status });
+    return JSON.parse(body) as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error('[api-network-error]', { url, error: error instanceof Error ? error.message : 'Unknown error' });
+    throw error;
   }
-  return response.json() as Promise<T>;
 }
 
 function authenticatedHeaders(): HeadersInit {

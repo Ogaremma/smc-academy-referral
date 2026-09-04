@@ -34,3 +34,8 @@ async def root():
         "app": settings.PROJECT_NAME,
         "environment": settings.ENVIRONMENT,
     }
+
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}

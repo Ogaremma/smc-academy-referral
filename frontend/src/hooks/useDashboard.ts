@@ -38,6 +38,7 @@ export function useDashboard(): { state: DashboardState; retry: () => void } {
     let active = true;
     const webApp = initializeTelegram();
     const initData = webApp?.initData ?? '';
+    console.info('[telegram-auth]', { webAppAvailable: Boolean(webApp), initDataPresent: Boolean(initData), initDataLength: initData.length });
     const startParam = webApp ? getTelegramStartParam(webApp) : undefined;
 
     if (!initData) {
@@ -47,8 +48,9 @@ export function useDashboard(): { state: DashboardState; retry: () => void } {
 
     loadAuthenticatedData(initData, startParam)
       .then((data) => { if (active) setState({ status: 'ready', data }); })
-      .catch(() => {
-        if (active) setState({ status: 'error', message: 'We could not load your referral dashboard. Check your connection and try again.' });
+      .catch((error: unknown) => {
+        console.error('[dashboard-load-failed]', error);
+        if (active) setState({ status: 'error', message: 'We could not load your referral dashboard. Check the browser console for the request status and try again.' });
       });
 
     return () => { active = false; };
