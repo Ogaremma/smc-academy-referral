@@ -14,6 +14,7 @@ export interface TelegramWebApp {
   expand(): void;
   openTelegramLink(url: string): void;
   openLink?(url: string): void;
+  BackButton?: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void };
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
 }

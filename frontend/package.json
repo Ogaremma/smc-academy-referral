@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "check": "tsc -b",
+    "test": "node --test",
     "lint": "npm run check",
     "preview": "vite preview"
   },

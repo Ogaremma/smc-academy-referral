@@ -22,6 +22,14 @@ def test_valid_production_configuration():
     production_settings().validate_production()
 
 
+def test_production_configuration_accepts_vercel_frontend_origin():
+    """The deployed Mini App origin must be a valid explicit CORS origin."""
+    production_settings(
+        FRONTEND_URL="https://smc-academy-referral.vercel.app",
+        CORS_ALLOWED_ORIGINS="https://smc-academy-referral.vercel.app",
+    ).validate_production()
+
+
 @pytest.mark.parametrize(
     "override, expected",
     [

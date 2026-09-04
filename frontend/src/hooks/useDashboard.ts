@@ -46,7 +46,8 @@ export function useDashboard(): { state: DashboardState; retry: () => void } {
       return () => { active = false; };
     }
 
-    loadAuthenticatedData(initData, startParam)
+    const run = async () => { let last: unknown; for (let i=0;i<3;i++) { try { return await loadAuthenticatedData(initData, startParam); } catch(e) { last=e; if(i<2) await new Promise(r=>setTimeout(r, 500 * 2 ** i)); } } throw last; };
+    run()
       .then((data) => { if (active) setState({ status: 'ready', data }); })
       .catch((error: unknown) => {
         console.error('[dashboard-load-failed]', error);

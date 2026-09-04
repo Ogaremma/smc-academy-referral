@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import REFERRAL_CODE_ALPHABET, generate_referral_code
 from app.db.models import ReferralCode, User
 from app.services.user_service import get_or_create_telegram_user
+from app.core.security import create_access_token
+from app.db.models import Referral
 from tests.conftest import TEST_BOT_TOKEN, create_telegram_init_data
 
 
@@ -144,3 +146,19 @@ async def test_existing_user_returns_loaded_referral_code(db_session: AsyncSessi
 
     assert existing_code.code == original_code
     assert user.referral_code.code == original_code
+
+@pytest.mark.asyncio
+async def test_account_deletion_deactivates_only_authenticated_user_and_preserves_history(client, db_session):
+    a = await client.post('/api/v1/auth/telegram', json={'init_data': create_telegram_init_data(user_dict={'id': 10101})})
+    b = await client.post('/api/v1/auth/telegram', json={'init_data': create_telegram_init_data(user_dict={'id': 20202})})
+    ta, tb = a.json()['access_token'], b.json()['access_token']
+    ua = (await db_session.execute(select(User).where(User.telegram_id == 10101))).scalar_one()
+    code_id = (await db_session.execute(select(ReferralCode.id).where(ReferralCode.user_id == ua.id))).scalar_one()
+    ref = Referral(referral_code_id=code_id, referrer_id=ua.id, google_form_response_id='audit-1', status='verified')
+    db_session.add(ref); await db_session.commit()
+    deleted = await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {ta}'})
+    assert deleted.status_code == 204
+    assert (await client.get('/api/v1/user/me', headers={'Authorization': f'Bearer {ta}'})).status_code == 401
+    assert (await client.get('/api/v1/user/me', headers={'Authorization': f'Bearer {tb}'})).status_code == 200
+    assert (await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {ta}'})).status_code == 401
+    assert (await db_session.execute(select(Referral).where(Referral.google_form_response_id == 'audit-1'))).scalar_one().id == ref.id

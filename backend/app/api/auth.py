@@ -20,7 +20,6 @@ from app.services.user_service import get_or_create_telegram_user
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security_bearer = HTTPBearer()
 
-
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
     db: AsyncSession = Depends(get_db),
@@ -56,6 +55,12 @@ async def get_current_user(
         )
 
     return user, user.referral_code
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(current: Tuple[User, ReferralCode] = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    user, _ = current
+    user.is_active = False
+    await db.commit()
 
 
 @router.post("/telegram", response_model=TokenResponse)

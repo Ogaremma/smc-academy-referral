@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -17,3 +17,19 @@ class DashboardResponse(BaseModel):
     personal_referral_link: str
     registration_form_url: Optional[str] = None
     recent_verified_activity: List[ReferralActivityItem]
+
+class ReferralSummary(BaseModel):
+    id: int
+    name: str
+    course: Optional[str] = None
+    status: str
+    created_at: datetime
+
+class ReferralDetail(ReferralSummary):
+    fields: Dict[str, Any]
+    registered_at: Optional[datetime] = None
+
+class ReferralsResponse(BaseModel):
+    total: int
+    registered: int
+    referrals: List[ReferralSummary]

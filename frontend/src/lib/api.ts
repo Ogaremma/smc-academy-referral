@@ -64,3 +64,6 @@ export const getDashboard = (): Promise<DashboardResponse> =>
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
+export async function deleteAccount(): Promise<void> { await request<void>('/api/v1/auth/account', { method: 'DELETE' }); sessionToken.clear(); }
+export const getReferrals = () => request<any>('/api/v1/referrals', { headers: authenticatedHeaders() });
+export const getReferral = (id:number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });

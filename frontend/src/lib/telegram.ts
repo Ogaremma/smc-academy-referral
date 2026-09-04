@@ -15,6 +15,13 @@ export function initializeTelegram(): TelegramWebApp | null {
   return webApp;
 }
 
+export function setTelegramBackButton(visible: boolean, onBack: () => void): () => void {
+  const button = getTelegramWebApp()?.BackButton;
+  if (!button) return () => {};
+  if (visible) { button.show(); button.onClick(onBack); } else button.hide();
+  return () => { button.offClick(onBack); button.hide(); };
+}
+
 export function hapticSuccess(): void {
   getTelegramWebApp()?.HapticFeedback?.notificationOccurred('success');
 }
