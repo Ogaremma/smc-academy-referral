@@ -117,6 +117,8 @@ async def get_or_create_telegram_user(
         user = result.scalar_one_or_none()
 
         if user:
+            if not user.is_active:
+                raise PermissionError("This affiliate account has been deleted or deactivated.")
             if user.username != username:
                 user.username = username
             if user.first_name != first_name:

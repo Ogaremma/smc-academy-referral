@@ -32,6 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       throw new ApiError(response.status, detail, url);
     }
     console.debug('[api]', { url, status: response.status });
+    if (!body) return undefined as T;
     return JSON.parse(body) as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -64,6 +65,9 @@ export const getDashboard = (): Promise<DashboardResponse> =>
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
-export async function deleteAccount(): Promise<void> { await request<void>('/api/v1/auth/account', { method: 'DELETE' }); sessionToken.clear(); }
+export async function deleteAccount(): Promise<void> {
+  await request<void>('/api/v1/auth/account', { method: 'DELETE', headers: authenticatedHeaders() });
+  sessionToken.clear();
+}
 export const getReferrals = () => request<any>('/api/v1/referrals', { headers: authenticatedHeaders() });
 export const getReferral = (id:number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });

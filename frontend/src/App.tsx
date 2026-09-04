@@ -15,86 +15,20 @@ import { setTelegramBackButton } from '@/lib/telegram';
 function App() {
   const { state, retry } = useDashboard();
   const [unlocked, setUnlocked] = useState(false);
-  const [page, setPage] = useState(false); const [refs, setRefs] = useState<any>(null); const [detail, setDetail] = useState<any>(null); const [deleting, setDeleting] = useState(false);
+  const [page, setPage] = useState(false); const [refs, setRefs] = useState<any>(null); const [refsLoading, setRefsLoading] = useState(false); const [refsError, setRefsError] = useState(''); const [detail, setDetail] = useState<any>(null); const [detailLoading, setDetailLoading] = useState(false); const [detailError, setDetailError] = useState(''); const [deleting, setDeleting] = useState<'idle'|'busy'|boolean>(false); const [deleteError, setDeleteError] = useState(''); const [deleted, setDeleted] = useState(false);
   const userTelegramId = state.status === 'ready' ? state.data.profile.user.telegram_id : null;
   const storageKey = useMemo(() => userTelegramId ? `smc_referral_unlocked_${userTelegramId}` : null, [userTelegramId]);
-
-  useEffect(() => {
-    setUnlocked(storageKey ? localStorage.getItem(storageKey) === '1' : false);
-  }, [storageKey]);
+  useEffect(() => { setUnlocked(storageKey ? localStorage.getItem(storageKey) === '1' : false); }, [storageKey]);
   useEffect(() => setTelegramBackButton(page, () => { if (detail) setDetail(null); else setPage(false); }), [page, detail]);
-
-  if (state.status === 'loading') {
-    return <DashboardSkeleton />;
-  }
-
-  if (state.status === 'error') {
-    return <ErrorState message={state.message} onRetry={retry} />;
-  }
-
+  const loadRefs = async () => { setRefsLoading(true); setRefsError(''); try { const response = await getReferrals(); setRefs(response.referrals); } catch (error) { setRefsError(error instanceof Error ? error.message : 'Unable to load your referrals.'); } finally { setRefsLoading(false); } };
+  const openDetail = async (id: number) => { setDetailLoading(true); setDetailError(''); setDetail(null); try { setDetail(await getReferral(id)); } catch (error) { setDetailError(error instanceof Error ? error.message : 'Unable to load referral details.'); } finally { setDetailLoading(false); } };
+  if (state.status === 'loading') return <DashboardSkeleton />;
+  if (state.status === 'error') return <ErrorState message={state.message} onRetry={retry} />;
+  if (deleted) return <main className="app-shell flex min-h-screen items-center justify-center px-4"><section className="glass-card w-full max-w-md p-7 text-center"><h1 className="text-2xl font-semibold">Account Deleted</h1><p className="mt-3 text-sm text-zinc-400">Your affiliate account has been deactivated. You can close this Mini App.</p></section></main>;
   const { profile, dashboard } = state.data;
-  if (page) return <main className="app-shell min-h-screen px-4 pt-safe"><button className="icon-button" onClick={()=>setPage(false)}>Back</button><h1 className="section-title mt-5">My Referrals</h1>{!refs ? <button className="primary-button mt-5" onClick={()=>getReferrals().then(setRefs)}>Load referrals</button> : refs.referrals.length===0 ? <p className="mt-6 text-zinc-400">No Referrals Yet</p> : refs.referrals.map((r:any)=><button className="glass-card mt-3 w-full p-4 text-left" key={r.id} onClick={()=>getReferral(r.id).then(setDetail)}><b>{r.name}</b><div className="text-sm text-zinc-400">{r.course || 'Course not specified'} · {r.status}</div></button>)}{detail && <div className="glass-card mt-5 p-4">{Object.entries(detail.fields).map(([k,v])=><p key={k} className="text-sm">{k}: {String(v)}</p>)}</div>}</main>;
-  const revealReferral = () => {
-    if (storageKey) localStorage.setItem(storageKey, '1');
-    setUnlocked(true);
-  };
-
-  if (!unlocked) {
-    return (
-      <main className="app-shell flex min-h-screen items-center justify-center px-4 pb-safe pt-safe">
-        <div className="ambient ambient-top" aria-hidden="true" />
-        <section className="relative z-10 w-full max-w-md animate-slide-up">
-          <AppHeader firstName={profile.user.first_name} photoUrl={profile.user.photo_url} />
-          <div className="glass-card mt-10 overflow-hidden p-7 text-center sm:p-10">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white text-black shadow-[0_0_35px_rgba(255,255,255,.12)]"><Sparkles size={24} /></div>
-            <p className="eyebrow mt-7">Your private invite</p><h1 className="mt-2 text-xl font-semibold">Sign Up As an SMC Academy Affiliate</h1>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Build your circle.</h2>
-            <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-zinc-400">Your Telegram account is securely connected. Generate your unique referral link and invite others to join the next SMC Academy cohort.</p>
-            <button type="button" className="primary-button mt-8 w-full py-3.5 text-base" onClick={revealReferral}><Link2 size={18} /> Generate My Referral Link <ArrowUpRight size={17} /></button>
-          </div>
-          <p className="mt-6 text-center text-[11px] uppercase tracking-[.2em] text-zinc-600">SMC Academy · Referral Programme</p>
-        </section>
-      </main>
-    );
-  }
-
-  return (
-    <main className="app-shell animate-fade-in">
-      <div className="ambient ambient-top" aria-hidden="true" />
-      <div className="ambient ambient-side" aria-hidden="true" />
-
-      <div className="relative z-10 mx-auto w-full max-w-lg px-4 pb-safe pt-safe sm:px-6">
-        <AppHeader firstName={profile.user.first_name} photoUrl={profile.user.photo_url} />
-
-        <section className="mt-8" aria-labelledby="overview-heading">
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="eyebrow">Your impact</p>
-              <h2 id="overview-heading" className="section-title">Referral overview</h2>
-            </div>
-            <span className="live-badge"><span /> Live</span>
-          </div>
-          <StatCard value={dashboard.total_verified_referrals} />
-        </section>
-
-        <section className="mt-4 grid gap-4" aria-label="Referral tools">
-          {dashboard.registration_form_url && (
-            <RegistrationFormCard url={dashboard.registration_form_url} />
-          )}
-          <ReferralLinkCard link={dashboard.personal_referral_link} />
-          <ReferralCodeCard code={profile.referral_code} />
-          <button className="icon-button w-full" onClick={()=>{setPage(true); void getReferrals().then(setRefs)}}>View All Referrals</button><button className="mt-3 w-full rounded-md bg-red-950 px-4 py-3 text-red-200" onClick={()=>setDeleting(true)}>Delete Account</button>
-        </section>
-
-        <ActivityList items={dashboard.recent_verified_activity} />
-
-        <footer className="pb-5 pt-8 text-center text-xs text-zinc-600">
-          SMC Academy Referral Programme
-        </footer>
-      </div>
-      {deleting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-5"><div className="glass-card p-6"><h2 className="text-lg font-semibold">Delete Affiliate Account?</h2><p className="mt-3 text-sm text-zinc-400">Are you sure you want to delete your SMC Academy affiliate account? Your affiliate account and referral access will be permanently removed.</p><div className="mt-5 flex gap-3"><button className="icon-button" onClick={()=>setDeleting(false)}>Cancel</button><button className="rounded-md bg-red-600 px-3 py-2" onClick={()=>void deleteAccount().then(()=>window.location.reload())}>Delete Account</button></div></div></div>}
-    </main>
-  );
+  if (page) return <main className="app-shell min-h-screen px-4 pt-safe"><button className="icon-button" onClick={()=>detail||detailError ? (setDetail(null),setDetailError('')) : setPage(false)} aria-label="Back">Back</button><h1 className="section-title mt-5">{detail ? 'Referral Details' : 'My Referrals'}</h1>{detailLoading ? <div className="glass-card mt-5 h-56 animate-pulse" aria-label="Loading referral details" /> : detailError ? <div className="mt-6"><p role="alert">Unable to load referral details.</p></div> : detail ? <div className="glass-card mt-5 space-y-4 p-5"><h2 className="text-lg font-semibold">Referral Details</h2>{Object.entries(detail.fields || {}).map(([k,v])=><div key={k}><p className="text-xs text-zinc-400">{k}</p><p>{String(v)}</p></div>)}</div> : refsLoading ? <div className="glass-card mt-5 h-64 animate-pulse" aria-label="Loading referrals" /> : refsError ? <div className="mt-6"><p role="alert">Unable to load your referrals.</p><button className="primary-button mt-4" onClick={loadRefs}>Retry</button></div> : !refs ? <button className="primary-button mt-5" onClick={loadRefs}>Load referrals</button> : refs.length===0 ? <div className="mt-6"><h2 className="text-lg font-semibold">No Referrals Yet</h2><p className="mt-2 text-sm text-zinc-400">Share your referral link to start building your network.</p></div> : refs.map((r:any)=><button className="glass-card mt-3 w-full p-4 text-left" key={r.id} onClick={()=>openDetail(r.id)}><b>{r.name}</b><div className="text-sm text-zinc-400">{r.course || 'Course not specified'} · {r.status}</div></button>)}</main>;
+  const revealReferral = () => { if (storageKey) localStorage.setItem(storageKey, '1'); setUnlocked(true); };
+  if (!unlocked) return <main className="app-shell flex min-h-screen items-center justify-center px-4 pb-safe pt-safe"><div className="ambient ambient-top" aria-hidden="true" /><section className="relative z-10 w-full max-w-md animate-slide-up"><AppHeader firstName={profile.user.first_name} photoUrl={profile.user.photo_url} /><div className="glass-card mt-10 overflow-hidden p-7 text-center sm:p-10"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white text-black"><Sparkles size={24} /></div><p className="eyebrow mt-7">Your private invite</p><h1 className="mt-2 text-xl font-semibold">Sign Up As an SMC Academy Affiliate</h1><h2 className="mt-2 text-3xl font-semibold text-white">Build your circle.</h2><p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-zinc-400">Your Telegram account is securely connected. Generate your unique referral link and invite others to join the next SMC Academy cohort.</p><button type="button" className="primary-button mt-8 w-full py-3.5 text-base" onClick={revealReferral}><Link2 size={18} /> Generate My Referral Link <ArrowUpRight size={17} /></button></div></section></main>;
+  return <main className="app-shell animate-fade-in"><div className="relative z-10 mx-auto w-full max-w-lg px-4 pb-safe pt-safe sm:px-6"><AppHeader firstName={profile.user.first_name} photoUrl={profile.user.photo_url} /><section className="mt-8"><StatCard value={dashboard.total_verified_referrals} /></section><section className="mt-4 grid gap-4" aria-label="Referral tools">{dashboard.registration_form_url && <RegistrationFormCard url={dashboard.registration_form_url} />}<ReferralLinkCard link={dashboard.personal_referral_link} /><ReferralCodeCard code={profile.referral_code} /><button className="icon-button w-full" onClick={()=>{setPage(true);void loadRefs()}}>View All Referrals</button><button className="mt-3 w-full rounded-md bg-red-950 px-4 py-3 text-red-200" onClick={()=>setDeleting(true)}>Delete Account</button></section><ActivityList items={dashboard.recent_verified_activity} /></div>{deleting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-5"><div className="glass-card p-6"><h2 className="text-lg font-semibold">Delete Affiliate Account?</h2><p className="mt-3 text-sm text-zinc-400">Your affiliate account will be deactivated. Historical referral records are preserved.</p>{deleteError && <p role="alert" className="mt-3 text-sm text-red-300">{deleteError}</p>}<div className="mt-5 flex gap-3"><button className="icon-button" disabled={deleting === 'busy'} onClick={()=>setDeleting(false)}>Cancel</button><button className="rounded-md bg-red-600 px-3 py-2 disabled:opacity-50" disabled={deleting === 'busy'} onClick={async()=>{setDeleting('busy');setDeleteError('');try{await deleteAccount();setDeleting(false);setDeleted(true)}catch(e){setDeleting(true);setDeleteError(e instanceof Error?e.message:'Unable to delete account. Please try again.')}}}>{deleting === 'busy' ? 'Deleting...' : 'Delete Account'}</button></div></div></div>}</main>;
 }
-
 export default App;

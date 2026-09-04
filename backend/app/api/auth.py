@@ -83,11 +83,12 @@ async def authenticate_telegram_user(
             detail=f"Telegram authentication failed: {str(e)}",
         )
 
-    user, ref_code = await get_or_create_telegram_user(
-        db,
-        telegram_user_data,
-        referral_start_param=signed_start_param,
-    )
+    try:
+        user, ref_code = await get_or_create_telegram_user(
+            db, telegram_user_data, referral_start_param=signed_start_param
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     access_token = create_access_token(
         data={"sub": str(user.id), "telegram_id": user.telegram_id}

@@ -162,3 +162,14 @@ async def test_account_deletion_deactivates_only_authenticated_user_and_preserve
     assert (await client.get('/api/v1/user/me', headers={'Authorization': f'Bearer {tb}'})).status_code == 200
     assert (await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {ta}'})).status_code == 401
     assert (await db_session.execute(select(Referral).where(Referral.google_form_response_id == 'audit-1'))).scalar_one().id == ref.id
+
+@pytest.mark.asyncio
+async def test_deleted_telegram_identity_cannot_be_recreated(client):
+    init = create_telegram_init_data(user_dict={'id': 30303, 'username': 'deleted_user'})
+    first = await client.post('/api/v1/auth/telegram', json={'init_data': init})
+    assert first.status_code == 200
+    token = first.json()['access_token']
+    assert (await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {token}'})).status_code == 204
+    again = await client.post('/api/v1/auth/telegram', json={'init_data': init})
+    assert again.status_code == 403
+    assert 'deleted or deactivated' in again.json()['detail']
