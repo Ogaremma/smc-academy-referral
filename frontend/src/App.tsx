@@ -8,11 +8,17 @@ import { ReferralLinkCard } from '@/components/ReferralLinkCard';
 import { RegistrationFormCard } from '@/components/RegistrationFormCard';
 import { StatCard } from '@/components/StatCard';
 import { ArrowUpRight, Link2, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function App() {
   const { state, retry } = useDashboard();
   const [unlocked, setUnlocked] = useState(false);
+  const userTelegramId = state.status === 'ready' ? state.data.profile.user.telegram_id : null;
+  const storageKey = useMemo(() => userTelegramId ? `smc_referral_unlocked_${userTelegramId}` : null, [userTelegramId]);
+
+  useEffect(() => {
+    setUnlocked(storageKey ? localStorage.getItem(storageKey) === '1' : false);
+  }, [storageKey]);
 
   if (state.status === 'loading') {
     return <DashboardSkeleton />;
@@ -23,11 +29,8 @@ function App() {
   }
 
   const { profile, dashboard } = state.data;
-  const storageKey = `smc_referral_unlocked_${profile.user.telegram_id}`;
-  useEffect(() => { setUnlocked(localStorage.getItem(storageKey) === '1'); }, [storageKey]);
-
   const revealReferral = () => {
-    localStorage.setItem(storageKey, '1');
+    if (storageKey) localStorage.setItem(storageKey, '1');
     setUnlocked(true);
   };
 

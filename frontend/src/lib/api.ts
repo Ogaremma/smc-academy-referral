@@ -1,7 +1,11 @@
 import type { AuthResponse, DashboardResponse, UserProfileResponse } from '@/types/api';
 import { sessionToken } from '@/lib/session';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '');
+const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '');
+const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API_BASE_URL = configuredApiUrl && (!configuredApiUrl.startsWith('http://localhost') && !configuredApiUrl.startsWith('http://127.0.0.1') || isLocalHost)
+  ? configuredApiUrl
+  : isLocalHost ? 'http://localhost:8000' : 'https://smc-academy-referral.onrender.com';
 
 class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
