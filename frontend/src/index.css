@@ -33,17 +33,17 @@
   .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .glass-card { @apply rounded-lg border border-white/10 bg-white/[0.055] backdrop-blur-xl; box-shadow: 0 20px 55px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.045); }
   .icon-button { @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.07] text-zinc-200 transition duration-200 hover:border-white/20 hover:bg-white/[0.12] active:scale-95 disabled:opacity-60; }
-  .primary-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-emerald-950 transition duration-200 hover:bg-emerald-200 active:scale-[.98]; box-shadow: 0 10px 30px rgba(110,231,183,.15); }
-  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[.18em] text-emerald-300/80; }
+  .primary-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-black transition duration-200 hover:bg-zinc-200 active:scale-[.98]; box-shadow: 0 10px 30px rgba(255,255,255,.12); }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[.18em] text-zinc-400; }
   .section-title { @apply mt-1 text-lg font-semibold text-zinc-100; }
-  .live-badge { @apply inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-300/[0.07] px-2.5 py-1 text-[11px] font-medium text-emerald-200; }
-  .live-badge span { @apply h-1.5 w-1.5 rounded-full bg-emerald-300; box-shadow: 0 0 10px #6ee7b7; }
+  .live-badge { @apply inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-2.5 py-1 text-[11px] font-medium text-zinc-300; }
+  .live-badge span { @apply h-1.5 w-1.5 rounded-full bg-zinc-300; box-shadow: 0 0 10px #d4d4d8; }
   .skeleton { @apply animate-pulse rounded-md bg-white/[0.07]; }
 }
 
 .ambient { position: fixed; pointer-events: none; border-radius: 999px; filter: blur(70px); opacity: .16; }
-.ambient-top { width: 260px; height: 220px; top: -120px; right: -60px; background: #34d399; }
-.ambient-side { width: 220px; height: 260px; top: 38%; left: -170px; background: #38bdf8; opacity: .1; }
+.ambient-top { width: 300px; height: 240px; top: -140px; right: -80px; background: #fff; opacity: .08; }
+.ambient-side { width: 240px; height: 280px; top: 38%; left: -180px; background: #aaa; opacity: .06; }
 ::-webkit-scrollbar { width: 0; height: 0; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,9 +7,12 @@ import { ReferralCodeCard } from '@/components/ReferralCodeCard';
 import { ReferralLinkCard } from '@/components/ReferralLinkCard';
 import { RegistrationFormCard } from '@/components/RegistrationFormCard';
 import { StatCard } from '@/components/StatCard';
+import { ArrowUpRight, Link2, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 function App() {
   const { state, retry } = useDashboard();
+  const [unlocked, setUnlocked] = useState(false);
 
   if (state.status === 'loading') {
     return <DashboardSkeleton />;
@@ -20,6 +23,32 @@ function App() {
   }
 
   const { profile, dashboard } = state.data;
+  const storageKey = `smc_referral_unlocked_${profile.user.telegram_id}`;
+  useEffect(() => { setUnlocked(localStorage.getItem(storageKey) === '1'); }, [storageKey]);
+
+  const revealReferral = () => {
+    localStorage.setItem(storageKey, '1');
+    setUnlocked(true);
+  };
+
+  if (!unlocked) {
+    return (
+      <main className="app-shell flex min-h-screen items-center justify-center px-4 pb-safe pt-safe">
+        <div className="ambient ambient-top" aria-hidden="true" />
+        <section className="relative z-10 w-full max-w-md animate-slide-up">
+          <AppHeader firstName={profile.user.first_name} photoUrl={profile.user.photo_url} />
+          <div className="glass-card mt-10 overflow-hidden p-7 text-center sm:p-10">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white text-black shadow-[0_0_35px_rgba(255,255,255,.12)]"><Sparkles size={24} /></div>
+            <p className="eyebrow mt-7">Your private invite</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Build your circle.</h2>
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-zinc-400">Your account is connected securely through Telegram. Generate your unique link to invite friends into the next SMC Academy cohort.</p>
+            <button type="button" className="primary-button mt-8 w-full py-3.5 text-base" onClick={revealReferral}><Link2 size={18} /> Generate My Referral Link <ArrowUpRight size={17} /></button>
+          </div>
+          <p className="mt-6 text-center text-[11px] uppercase tracking-[.2em] text-zinc-600">SMC Academy · Referral Programme</p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell animate-fade-in">

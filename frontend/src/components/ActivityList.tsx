@@ -21,7 +21,7 @@ export function ActivityList({ items }: { items: ReferralActivity[] }) {
       ) : (
         <GlassCard className="mt-3 overflow-hidden">
           <ul className="divide-y divide-white/[0.07]">
-            {items.map((item) => <li key={item.id} className="flex items-center gap-3 px-4 py-4"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-300/[0.08] text-emerald-300"><ShieldCheck size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-zinc-200">Private registration</p><p className="mt-0.5 text-xs text-zinc-500">Verified registration</p></div><time className="shrink-0 text-[11px] text-zinc-500" dateTime={item.verified_at ?? undefined}>{formatDate(item.verified_at)}</time></li>)}
+            {items.map((item) => <li key={item.id} className="flex items-center gap-3 px-4 py-4"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/[0.08] text-zinc-200"><ShieldCheck size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-zinc-200">Private registration</p><p className="mt-0.5 text-xs text-zinc-500">Verified registration</p></div><time className="shrink-0 text-[11px] text-zinc-500" dateTime={item.verified_at ?? undefined}>{formatDate(item.verified_at)}</time></li>)}
           </ul>
         </GlassCard>
       )}

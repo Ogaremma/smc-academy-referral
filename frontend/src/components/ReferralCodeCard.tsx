@@ -10,10 +10,10 @@ export function ReferralCodeCard({ code }: { code: string }) {
       <div className="mt-4 flex items-center gap-3">
         <code className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-white">{code}</code>
         <button type="button" className="icon-button" onClick={() => void copy(code)} aria-label={copied ? 'Referral code copied' : 'Copy referral code'} title="Copy referral code">
-          {copied ? <Check size={18} className="text-emerald-300" /> : <Copy size={18} />}
+          {copied ? <Check size={18} className="text-zinc-200" /> : <Copy size={18} />}
         </button>
       </div>
-      <p className="mt-3 min-h-5 text-xs text-emerald-300/80" aria-live="polite">{copied ? 'Code copied to clipboard' : 'Share this code with a prospective student.'}</p>
+      <p className="mt-3 min-h-5 text-xs text-zinc-200/80" aria-live="polite">{copied ? 'Code copied to clipboard' : 'Share this code with a prospective student.'}</p>
     </GlassCard>
   );
 }
