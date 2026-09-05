@@ -12,8 +12,9 @@ export interface User {
 export interface AuthResponse {
   access_token: string;
   token_type: 'bearer' | string;
-  user: User;
-  referral_code: string;
+  user: User | null;
+  referral_code: string | null;
+  affiliate_active?: boolean;
 }
 
 export interface UserProfileResponse {

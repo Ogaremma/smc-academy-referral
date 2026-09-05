@@ -9,6 +9,7 @@ class TelegramAuthRequest(BaseModel):
         None,
         description="Telegram Mini App launch parameter; signed initData remains authoritative",
     )
+    create_account: bool = True
 
 
 class UserRead(BaseModel):
@@ -41,5 +42,6 @@ class UserProfileResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserRead
-    referral_code: str
+    user: Optional[UserRead] = None
+    referral_code: Optional[str] = None
+    affiliate_active: bool = False

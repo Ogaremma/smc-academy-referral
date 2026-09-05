@@ -11,7 +11,7 @@ const dashboard = { total_verified_referrals: 0, recent_verified_activity: [], p
 beforeEach(() => { sessionStorage.clear(); vi.clearAllMocks(); });
 
 it('retries transient authentication failures and stops after success', async () => {
-  mocks.authenticate.mockRejectedValueOnce(new Error('one')).mockRejectedValueOnce(new Error('two')).mockResolvedValueOnce({});
+  mocks.authenticate.mockRejectedValueOnce(new Error('one')).mockRejectedValueOnce(new Error('two')).mockResolvedValueOnce({ affiliate_active: true });
   mocks.profile.mockResolvedValue(profile); mocks.dashboard.mockResolvedValue(dashboard);
   const { result } = renderHook(() => useDashboard());
   await waitFor(() => expect(result.current.state.status).toBe('ready'), { timeout: 4000 });

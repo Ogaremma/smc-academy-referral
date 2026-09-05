@@ -10,7 +10,7 @@ const dashboard = () => { localStorage.setItem('smc_referral_unlocked_1', '1'); 
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
 
 describe('dashboard', () => {
-  it('renders onboarding and generates the dashboard', () => { render(<App />); expect(screen.getByText('Sign Up As an SMC Academy Affiliate')).toBeInTheDocument(); expect(screen.getByText(/securely connected/i)).toBeInTheDocument(); fireEvent.click(screen.getByText(/Generate My Referral Link/)); expect(screen.getByText('View All Referrals')).toBeInTheDocument(); });
+  it('renders the active dashboard controls', () => { render(<App />); expect(screen.getByText('View All Referrals')).toBeInTheDocument(); expect(screen.getByText('Delete Account')).toBeInTheDocument(); });
   it('orders link before code and opens My Referrals', async () => { api.getReferrals.mockResolvedValue({ referrals }); dashboard(); const link=screen.getByText('Personal link'), code=screen.getByText('Referral code'); expect(link.compareDocumentPosition(code)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); fireEvent.click(screen.getByText('View All Referrals')); await screen.findByText('John Doe'); expect(screen.getByText((_, element) => element?.textContent === 'Frontend Development · verified')).toBeInTheDocument(); });
 });
 

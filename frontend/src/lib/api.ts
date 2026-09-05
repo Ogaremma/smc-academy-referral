@@ -50,8 +50,13 @@ function authenticatedHeaders(): HeadersInit {
 export async function authenticateTelegram(initData: string, startParam?: string): Promise<AuthResponse> {
   const response = await request<AuthResponse>('/api/v1/auth/telegram', {
     method: 'POST',
-    body: JSON.stringify({ init_data: initData, start_param: startParam || null }),
+    body: JSON.stringify({ init_data: initData, start_param: startParam || null, create_account: false }),
   });
+  sessionToken.set(response.access_token);
+  return response;
+}
+export async function registerAffiliate(): Promise<AuthResponse> {
+  const response = await request<AuthResponse>('/api/v1/auth/affiliate/register', { method: 'POST', headers: authenticatedHeaders() });
   sessionToken.set(response.access_token);
   return response;
 }
