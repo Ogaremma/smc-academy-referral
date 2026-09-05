@@ -58,8 +58,11 @@ async def get_current_user(
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(current: Tuple[User, ReferralCode] = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    user, _ = current
+    user, ref_code = current
+    user.deleted_telegram_id = user.telegram_id
+    user.telegram_id = -9223372036854775807 + user.id
     user.is_active = False
+    ref_code.is_active = False
     await db.commit()
 
 

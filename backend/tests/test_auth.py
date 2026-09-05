@@ -1,11 +1,13 @@
+import asyncio
 import time
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.security import REFERRAL_CODE_ALPHABET, generate_referral_code
 from app.db.models import ReferralCode, User
+from app.db.base import Base
 from app.services.user_service import get_or_create_telegram_user
 from app.core.security import create_access_token
 from app.db.models import Referral
@@ -164,12 +166,69 @@ async def test_account_deletion_deactivates_only_authenticated_user_and_preserve
     assert (await db_session.execute(select(Referral).where(Referral.google_form_response_id == 'audit-1'))).scalar_one().id == ref.id
 
 @pytest.mark.asyncio
-async def test_deleted_telegram_identity_cannot_be_recreated(client):
+async def test_deleted_telegram_identity_creates_new_account_lifecycle(client, db_session):
     init = create_telegram_init_data(user_dict={'id': 30303, 'username': 'deleted_user'})
     first = await client.post('/api/v1/auth/telegram', json={'init_data': init})
     assert first.status_code == 200
-    token = first.json()['access_token']
-    assert (await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {token}'})).status_code == 204
+    old = first.json()
+    old_user_id, old_code, old_token = old['user']['id'], old['referral_code'], old['access_token']
+    old_code_id = (await db_session.execute(select(ReferralCode.id).where(ReferralCode.user_id == old_user_id))).scalar_one()
+    referral = Referral(referral_code_id=old_code_id, referrer_id=old_user_id, google_form_response_id='old-lifecycle-referral', status='verified')
+    db_session.add(referral)
+    await db_session.commit()
+
+    assert (await client.delete('/api/v1/auth/account', headers={'Authorization': f'Bearer {old_token}'})).status_code == 204
+    assert (await client.get('/api/v1/user/me', headers={'Authorization': f'Bearer {old_token}'})).status_code == 401
+
     again = await client.post('/api/v1/auth/telegram', json={'init_data': init})
-    assert again.status_code == 403
-    assert 'deleted or deactivated' in again.json()['detail']
+    assert again.status_code == 200
+    new = again.json()
+    assert new['user']['id'] != old_user_id
+    assert new['referral_code'] != old_code
+    repeated = await client.post('/api/v1/auth/telegram', json={'init_data': init})
+    assert repeated.status_code == 200
+    assert repeated.json()['user']['id'] == new['user']['id']
+    assert repeated.json()['referral_code'] == new['referral_code']
+
+    users = (await db_session.execute(select(User).where((User.telegram_id == 30303) | (User.deleted_telegram_id == 30303)).order_by(User.id))).scalars().all()
+    assert len(users) == 2
+    assert users[0].is_active is False
+    assert users[0].deleted_telegram_id == 30303
+    assert users[1].is_active is True
+    assert users[1].telegram_id == 30303
+    old_referral_code = (await db_session.execute(select(ReferralCode).where(ReferralCode.user_id == old_user_id))).scalar_one()
+    assert old_referral_code.is_active is False
+
+    new_token = new['access_token']
+    dashboard = await client.get('/api/v1/user/dashboard', headers={'Authorization': f'Bearer {new_token}'})
+    assert dashboard.status_code == 200
+    assert dashboard.json()['total_verified_referrals'] == 0
+    assert new['referral_code'] in dashboard.json()['personal_referral_link']
+    assert (await client.get(f'/api/v1/referrals/{referral.id}', headers={'Authorization': f'Bearer {new_token}'})).status_code == 404
+    preserved = (await db_session.execute(select(Referral).where(Referral.id == referral.id))).scalar_one()
+    assert preserved.referrer_id == old_user_id
+
+
+@pytest.mark.asyncio
+async def test_concurrent_authentication_after_deletion_creates_one_new_active_account(tmp_path):
+    telegram_id = 404040
+    engine = create_async_engine(f"sqlite+aiosqlite:///{(tmp_path / 'concurrent.db').as_posix()}")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        old = User(telegram_id=-9223372036854775806, deleted_telegram_id=telegram_id, is_active=False)
+        session.add(old)
+        await session.commit()
+
+    async def authenticate():
+        async with factory() as session:
+            user, code = await get_or_create_telegram_user(session, {'id': telegram_id, 'username': 'returning'})
+            return user.id, code.code
+
+    first, second = await asyncio.gather(authenticate(), authenticate())
+    assert first == second
+    async with factory() as session:
+        active = (await session.execute(select(User).where(User.telegram_id == telegram_id, User.is_active.is_(True)))).scalars().all()
+        assert len(active) == 1
+    await engine.dispose()

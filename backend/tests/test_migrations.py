@@ -24,6 +24,9 @@ def test_alembic_initial_migration_creates_schema(tmp_path, monkeypatch):
         referral_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(referrals)")
         }
+        user_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(users)")
+        }
         referral_schema = connection.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'referrals'"
         ).fetchone()[0]
@@ -62,4 +65,5 @@ def test_alembic_initial_migration_creates_schema(tmp_path, monkeypatch):
     } <= tables
     assert "google_form_response_id" in referral_columns
     assert "registered_at" in referral_columns
+    assert "deleted_telegram_id" in user_columns
     assert "ck_referrals_status" in referral_schema

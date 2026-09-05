@@ -26,6 +26,9 @@ class User(Base):
     telegram_id: Mapped[int] = mapped_column(
         BigInteger, unique=True, nullable=False
     )
+    deleted_telegram_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, index=True
+    )
     username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     first_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
