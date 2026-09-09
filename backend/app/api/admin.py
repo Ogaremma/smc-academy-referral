@@ -1,6 +1,6 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_admin
@@ -12,6 +12,13 @@ from app.db.session import get_db
 router = APIRouter(prefix="/admin", tags=["Administration"])
 class BroadcastRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4096)
+
+    @field_validator("message")
+    @classmethod
+    def message_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("message must not be blank")
+        return value
 
 async def _audit(db, actor, action, target=None, metadata=None):
     db.add(AuditLog(actor_user_id=actor.id, action=action, target_user_id=getattr(target, "id", None), metadata_json=json.dumps(metadata or {})))
