@@ -6,6 +6,7 @@ from app.api.user import router as user_router
 from app.api.webhooks import router as webhooks_router
 from app.api.referrals_private import router as private_referrals_router
 from app.api.admin import router as admin_router
+from app.api.payout import router as payout_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -14,6 +15,7 @@ api_v1_router.include_router(user_router)
 api_v1_router.include_router(webhooks_router)
 api_v1_router.include_router(private_referrals_router)
 api_v1_router.include_router(admin_router)
+api_v1_router.include_router(payout_router)
 
 # Main router combining API v1 and public referral routes
 main_router = APIRouter()
