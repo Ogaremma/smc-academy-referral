@@ -1,0 +1,14 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const api = vi.hoisted(() => ({ adminAffiliates: vi.fn(), adminReferrals: vi.fn(), adminAdministrators: vi.fn(), adminAuditLogs: vi.fn(), adminPayout: vi.fn(), adminReferral: vi.fn(), adminRevoke: vi.fn(), adminRestore: vi.fn(), adminRemove: vi.fn(), adminDemote: vi.fn() }));
+vi.mock('@/lib/api', () => api);
+import { AdminDashboard } from '@/components/AdminDashboard';
+
+beforeEach(() => { vi.clearAllMocks(); api.adminAffiliates.mockResolvedValue([{id:1,username:'alice',first_name:'Alice',telegram_id:11,account_status:'ACTIVE'},{id:2,username:'bob',first_name:'Bob',telegram_id:22,account_status:'REVOKED'}]); api.adminReferrals.mockResolvedValue([{id:9,referrer_id:1,status:'verified'}]); api.adminAdministrators.mockResolvedValue([{id:3,username:'Web3Launcherr',is_protected_admin:true},{id:4,username:'operator',is_protected_admin:false}]); api.adminAuditLogs.mockResolvedValue([{id:1,action:'affiliate_revoked',target_user_id:1,metadata_json:'{}'}]); });
+
+describe('AdminDashboard',()=>{
+ it('renders affiliates and opens detail', async()=>{render(<AdminDashboard onBack={vi.fn()}/>); await screen.findByText('@alice'); fireEvent.click(screen.getByText('@alice')); expect(await screen.findByText('Affiliate Detail')).toBeInTheDocument();});
+ it('confirms revoke and prevents duplicate clicks', async()=>{api.adminRevoke.mockResolvedValue({}); render(<AdminDashboard onBack={vi.fn()}/>); await screen.findByText('@alice'); fireEvent.click(screen.getByText('@alice')); const confirm=vi.spyOn(window,'confirm').mockReturnValue(true); fireEvent.click(screen.getByText('Revoke')); fireEvent.click(screen.getByText('Revoking...')); expect(api.adminRevoke).toHaveBeenCalledTimes(1); await waitFor(()=>expect(screen.getByText('Affiliate revoked')).toBeInTheDocument()); confirm.mockRestore();});
+ it('shows protected admins without destructive controls', async()=>{render(<AdminDashboard onBack={vi.fn()}/>); fireEvent.click(screen.getByText('Administrators')); await screen.findByText('@Web3Launcherr'); expect(screen.getByText('Protected administrator')).toBeInTheDocument(); expect(screen.queryByText('Remove')).not.toBeInTheDocument();});
+ it('renders safe referral detail fields', async()=>{api.adminReferral.mockResolvedValue({candidate_email:'a@example.com',response_id:'secret',referral_code:'SMC-X'}); render(<AdminDashboard onBack={vi.fn()}/>); fireEvent.click(screen.getByText('Referrals')); await screen.findByText('#9'); fireEvent.click(screen.getByText('#9')); expect(await screen.findByText('candidate email')).toBeInTheDocument(); expect(screen.queryByText('secret')).not.toBeInTheDocument();});
+});

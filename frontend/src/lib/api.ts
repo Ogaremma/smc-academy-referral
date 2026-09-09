@@ -87,3 +87,5 @@ export const adminReferral = (id:number) => request<any>(`/api/v1/admin/referral
 export const adminAdd = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'POST',headers:authenticatedHeaders()});
 export const adminRemove = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'DELETE',headers:authenticatedHeaders()});
 export const adminDemote = (id:number) => request(`/api/v1/admin/administrators/${id}/demote`, {method:'POST',headers:authenticatedHeaders()});
+export const adminBroadcasts = () => request<any[]>('/api/v1/admin/broadcasts', {headers:authenticatedHeaders()});
+export const adminCreateBroadcast = (message:string) => request<any>('/api/v1/admin/broadcasts', {method:'POST',headers:authenticatedHeaders(),body:JSON.stringify({message})});

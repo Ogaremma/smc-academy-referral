@@ -1,12 +1,17 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_admin
-from app.db.models import AuditLog, User, Referral, PayoutDetails
+from app.db.models import AuditLog, User, Referral, PayoutDetails, Broadcast
+from app.db.session import AsyncSessionLocal
+from app.services.broadcast_service import deliver_broadcast
 from app.db.session import get_db
 
 router = APIRouter(prefix="/admin", tags=["Administration"])
+class BroadcastRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4096)
 
 async def _audit(db, actor, action, target=None, metadata=None):
     db.add(AuditLog(actor_user_id=actor.id, action=action, target_user_id=getattr(target, "id", None), metadata_json=json.dumps(metadata or {})))
@@ -48,6 +53,16 @@ async def payout(user_id: int, current=Depends(get_current_admin), db: AsyncSess
     row = (await db.execute(select(PayoutDetails).where(PayoutDetails.user_id == user_id))).scalar_one_or_none()
     if not row: raise HTTPException(404, "Payout details not found")
     return row
+
+@router.get('/broadcasts')
+async def broadcasts(current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    return (await db.execute(select(Broadcast).order_by(Broadcast.created_at.desc()))).scalars().all()
+
+@router.post('/broadcasts', status_code=202)
+async def create_broadcast(payload: BroadcastRequest, background_tasks: BackgroundTasks, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    b=Broadcast(actor_user_id=current[0].id,message=payload.message,status='QUEUED'); db.add(b); await db.commit(); await db.refresh(b)
+    background_tasks.add_task(deliver_broadcast,b.id,AsyncSessionLocal)
+    return b
 
 @router.post("/affiliates/{user_id}/revoke")
 async def revoke(user_id: int, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
