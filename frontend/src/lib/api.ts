@@ -83,3 +83,7 @@ export const adminAuditLogs = () => request<any[]>('/api/v1/admin/audit-logs', {
 export const adminRevoke = (id:number) => request(`/api/v1/admin/affiliates/${id}/revoke`, {method:'POST',headers:authenticatedHeaders()});
 export const adminRestore = (id:number) => request(`/api/v1/admin/affiliates/${id}/restore`, {method:'POST',headers:authenticatedHeaders()});
 export const adminPayout = (id:number) => request(`/api/v1/admin/affiliates/${id}/payout`, {headers:authenticatedHeaders()});
+export const adminReferral = (id:number) => request<any>(`/api/v1/admin/referrals/${id}`, {headers:authenticatedHeaders()});
+export const adminAdd = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'POST',headers:authenticatedHeaders()});
+export const adminRemove = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'DELETE',headers:authenticatedHeaders()});
+export const adminDemote = (id:number) => request(`/api/v1/admin/administrators/${id}/demote`, {method:'POST',headers:authenticatedHeaders()});
