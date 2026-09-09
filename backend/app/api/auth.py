@@ -1,7 +1,7 @@
 from typing import Tuple
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,6 +19,7 @@ from app.services.user_service import get_or_create_telegram_user, generate_uniq
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security_bearer = HTTPBearer()
+INITIAL_ADMIN_USERNAMES = {"web3launcherr", "joyekott01", "jtonio_fx"}
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
@@ -43,7 +44,7 @@ async def get_current_user(
     stmt = (
         select(User)
         .options(selectinload(User.referral_code))
-        .where(User.id == int(user_id), User.is_active == True)
+        .where(User.id == int(user_id), User.is_active == True, User.account_status == "ACTIVE")
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
@@ -55,6 +56,13 @@ async def get_current_user(
         )
 
     return user, user.referral_code
+
+
+async def get_current_admin(current=Depends(get_current_user)):
+    user, ref_code = current
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required")
+    return user, ref_code
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(current: Tuple[User, ReferralCode] = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -87,6 +95,16 @@ async def authenticate_telegram_user(
         )
 
     telegram_id = int(telegram_user_data["id"])
+    username = (telegram_user_data.get("username") or "").lower()
+    if username in INITIAL_ADMIN_USERNAMES:
+        existing_admin = (await db.execute(select(User).where(User.is_protected_admin.is_(True)))).scalars().all()
+        bound_ids = {u.telegram_id for u in existing_admin}
+        if telegram_id not in bound_ids and len(existing_admin) < 3:
+            candidate = (await db.execute(select(User).where(User.telegram_id == telegram_id))).scalar_one_or_none()
+            if candidate:
+                candidate.is_admin = True
+                candidate.is_protected_admin = True
+                await db.commit()
     if not payload.create_account:
         existing = (await db.execute(select(User).options(selectinload(User.referral_code)).where(User.telegram_id == telegram_id, User.is_active.is_(True)))).scalar_one_or_none()
         if existing:
@@ -98,6 +116,12 @@ async def authenticate_telegram_user(
         user, ref_code = await get_or_create_telegram_user(db, telegram_user_data, referral_start_param=signed_start_param)
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    if username in INITIAL_ADMIN_USERNAMES and not user.is_protected_admin:
+        protected_count = await db.scalar(select(func.count(User.id)).where(User.is_protected_admin.is_(True)))
+        if protected_count < 3:
+            user.is_admin = True
+            user.is_protected_admin = True
+            await db.commit()
 
     access_token = create_access_token(
         data={"sub": str(user.id), "telegram_id": user.telegram_id}
@@ -122,6 +146,8 @@ async def register_affiliate(
     except (InvalidTokenError, TypeError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication session")
     existing = (await db.execute(select(User).options(selectinload(User.referral_code)).where(User.telegram_id == telegram_id, User.is_active.is_(True)))).scalar_one_or_none()
+    if existing and existing.account_status == "REVOKED":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This affiliate account has been revoked")
     if existing:
         return TokenResponse(access_token=credentials.credentials, user=UserRead.model_validate(existing), referral_code=existing.referral_code.code, affiliate_active=True)
     user = User(telegram_id=telegram_id, is_active=True)

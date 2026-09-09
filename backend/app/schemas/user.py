@@ -20,6 +20,8 @@ class UserRead(BaseModel):
     last_name: Optional[str] = None
     photo_url: Optional[str] = None
     is_active: bool
+    account_status: str = "ACTIVE"
+    is_admin: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

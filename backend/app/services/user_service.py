@@ -117,6 +117,8 @@ async def get_or_create_telegram_user(
         user = result.scalar_one_or_none()
 
         if user:
+            if user.account_status == "REVOKED":
+                raise PermissionError("This affiliate account has been revoked.")
             if not user.is_active:
                 raise PermissionError("This affiliate account has been deleted or deactivated.")
             if user.username != username:
@@ -137,7 +139,7 @@ async def get_or_create_telegram_user(
             return user, referral_code
         else:
             new_user = User(telegram_id=int(telegram_id), username=username, first_name=first_name,
-                            last_name=last_name, photo_url=photo_url, is_active=True)
+                            last_name=last_name, photo_url=photo_url, is_active=True, account_status="ACTIVE")
             db.add(new_user)
             try:
                 await db.flush()  # Assigns new_user.id
