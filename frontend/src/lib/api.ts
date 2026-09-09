@@ -76,3 +76,10 @@ export async function deleteAccount(): Promise<void> {
 }
 export const getReferrals = () => request<any>('/api/v1/referrals', { headers: authenticatedHeaders() });
 export const getReferral = (id:number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });
+export const adminAffiliates = () => request<any[]>('/api/v1/admin/affiliates', {headers: authenticatedHeaders()});
+export const adminReferrals = () => request<any[]>('/api/v1/admin/referrals', {headers: authenticatedHeaders()});
+export const adminAdministrators = () => request<any[]>('/api/v1/admin/administrators', {headers: authenticatedHeaders()});
+export const adminAuditLogs = () => request<any[]>('/api/v1/admin/audit-logs', {headers: authenticatedHeaders()});
+export const adminRevoke = (id:number) => request(`/api/v1/admin/affiliates/${id}/revoke`, {method:'POST',headers:authenticatedHeaders()});
+export const adminRestore = (id:number) => request(`/api/v1/admin/affiliates/${id}/restore`, {method:'POST',headers:authenticatedHeaders()});
+export const adminPayout = (id:number) => request(`/api/v1/admin/affiliates/${id}/payout`, {headers:authenticatedHeaders()});

@@ -6,6 +6,8 @@ export interface User {
   last_name: string | null;
   photo_url: string | null;
   is_active: boolean;
+  account_status?: string;
+  is_admin?: boolean;
   created_at: string;
 }
 
