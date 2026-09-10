@@ -9,8 +9,8 @@ depends_on = None
 
 def upgrade():
     op.add_column("users", sa.Column("account_status", sa.String(16), nullable=False, server_default="ACTIVE"))
-    op.add_column("users", sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("0")))
-    op.add_column("users", sa.Column("is_protected_admin", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+    op.add_column("users", sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("false")))
+    op.add_column("users", sa.Column("is_protected_admin", sa.Boolean(), nullable=False, server_default=sa.text("false")))
     op.create_table("audit_logs",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("actor_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
