@@ -18,10 +18,14 @@ it('sends authenticated DELETE and clears the session after 204', async () => {
 it('authenticates without creating an affiliate and registers only explicitly', async () => {
   const fetchMock = vi.spyOn(globalThis, 'fetch')
     .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'telegram-token', affiliate_active: false }), { status: 200 }))
-    .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'affiliate-token', affiliate_active: true }), { status: 200 }));
+    .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'affiliate-token', affiliate_active: true, user: { username: 'alice' } }), { status: 200 }));
   await authenticateTelegram('signed-init', 'start-code');
   expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ init_data: 'signed-init', start_param: 'start-code', create_account: false });
-  await registerAffiliate();
-  expect(String(fetchMock.mock.calls[1][0])).toContain('/api/v1/auth/affiliate/register');
-  expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer telegram-token' });
+  await registerAffiliate('signed-init', 'start-code');
+  expect(String(fetchMock.mock.calls[1][0])).toContain('/api/v1/auth/telegram');
+  expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+    init_data: 'signed-init',
+    start_param: 'start-code',
+    create_account: true,
+  });
 });

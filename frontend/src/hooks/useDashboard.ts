@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticateTelegram, getDashboard, getProfile, isUnauthorized, registerAffiliate } from '@/lib/api';
 import { getTelegramStartParam, initializeTelegram } from '@/lib/telegram';
 import { sessionToken } from '@/lib/session';
@@ -31,6 +31,8 @@ async function loadAuthenticatedData(initData: string, startParam?: string): Pro
 export function useDashboard(): { state: DashboardState; retry: () => void; register: () => Promise<void> } {
   const [state, setState] = useState<DashboardState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const initDataRef = useRef('');
+  const startParamRef = useRef<string | undefined>(undefined);
 
   const retry = useCallback(() => {
     sessionToken.clear();
@@ -38,7 +40,7 @@ export function useDashboard(): { state: DashboardState; retry: () => void; regi
     setAttempt((value) => value + 1);
   }, []);
   const register = useCallback(async () => {
-    await registerAffiliate();
+    await registerAffiliate(initDataRef.current, startParamRef.current);
     const [profile, dashboard] = await Promise.all([getProfile(), getDashboard()]);
     setState({ status: 'ready', data: { profile, dashboard } });
   }, []);
@@ -47,8 +49,10 @@ export function useDashboard(): { state: DashboardState; retry: () => void; regi
     let active = true;
     const webApp = initializeTelegram();
     const initData = webApp?.initData ?? '';
-    console.info('[telegram-auth]', { webAppAvailable: Boolean(webApp), initDataPresent: Boolean(initData), initDataLength: initData.length });
     const startParam = webApp ? getTelegramStartParam(webApp) : undefined;
+    initDataRef.current = initData;
+    startParamRef.current = startParam;
+    console.info('[telegram-auth]', { webAppAvailable: Boolean(webApp), initDataPresent: Boolean(initData), initDataLength: initData.length });
 
     if (!initData) {
       setState({ status: 'error', message: 'Open this Mini App from @SMCARtrackerbot in Telegram to continue.' });

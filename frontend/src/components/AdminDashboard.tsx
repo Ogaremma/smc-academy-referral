@@ -1,13 +1,235 @@
-import { useEffect, useState } from 'react';
-import { adminAdministrators, adminAffiliates, adminAuditLogs, adminDemote, adminPayout, adminReferral, adminReferrals, adminRemove, adminRestore, adminRevoke, adminBroadcasts, adminCreateBroadcast } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  adminAdd,
+  adminAdministrators,
+  adminAffiliates,
+  adminAuditLogs,
+  adminBroadcasts,
+  adminCreateBroadcast,
+  adminDemote,
+  adminReferrals,
+  adminRemove,
+  adminRestore,
+  adminRevoke,
+} from '@/lib/api';
+import type {
+  AdminAffiliate,
+  AdminAuditLog,
+  AdminBroadcast,
+  AdminReferral,
+  AdminUser,
+  AdminUserSummary,
+} from '@/types/api';
+import { AdminError, AdminLoading } from '@/components/admin/AdminStates';
+import { AdminShell, type AdminSection } from '@/components/admin/AdminShell';
+import { AffiliateDetailPage } from '@/components/admin/AffiliateDetailPage';
+import { AffiliatesPage } from '@/components/admin/AffiliatesPage';
+import { AdministratorsPage } from '@/components/admin/AdministratorsPage';
+import { AuditLogPage } from '@/components/admin/AuditLogPage';
+import { BroadcastsPage } from '@/components/admin/BroadcastsPage';
+import { OverviewPage } from '@/components/admin/OverviewPage';
+import { ReferralsPage } from '@/components/admin/ReferralsPage';
 
-export function AdminDashboard({onBack}:{onBack:()=>void}) {
- const [tab,setTab]=useState('Overview'); const [items,setItems]=useState<any[]>([]); const [selected,setSelected]=useState<any>(null); const [detail,setDetail]=useState<any>(null); const [loading,setLoading]=useState(false); const [error,setError]=useState(''); const [pending,setPending]=useState(false); const [notice,setNotice]=useState(''); const [refDetail,setRefDetail]=useState<any>(null);
- const load=async()=>{setLoading(true);setError('');try{const fn=tab==='Affiliates'?adminAffiliates:tab==='Referrals'?adminReferrals:tab==='Administrators'?adminAdministrators:tab==='Audit Log'?adminAuditLogs:tab==='Broadcasts'?adminBroadcasts:adminAffiliates;setItems(await fn())}catch(e){setError(e instanceof Error?e.message:'Unable to load admin data.')}finally{setLoading(false)}};
- useEffect(()=>{void load()},[tab]);
- const mutate=async(fn:()=>Promise<any>,msg:string)=>{if(pending)return;setPending(true);setNotice('');try{await fn();setNotice(msg);await load();if(selected)setSelected({...selected,account_status:selected.account_status==='ACTIVE'?'REVOKED':'ACTIVE'})}catch(e){setError(e instanceof Error?e.message:'Operation failed.')}finally{setPending(false)}};
- if(selected)return <main className="app-shell min-h-screen px-4 pt-safe"><button className="icon-button" onClick={()=>{if(refDetail){setRefDetail(null);return}setSelected(null);setDetail(null)}}>Back</button><h1 className="section-title mt-5">{refDetail?'Referral Details':'Affiliate Detail'}</h1>{refDetail?<div className="glass-card mt-4 space-y-3 p-5">{Object.entries(refDetail).filter(([k])=>!['response_id','referral_code','submitted_at','status'].includes(k)).map(([k,v])=><div key={k}><p className="text-xs text-zinc-400">{k.replace(/_/g,' ')}</p><p>{String(v||'Not provided')}</p></div>)}</div>:<div className="glass-card mt-4 space-y-2 p-5"><h2 className="text-lg font-semibold">{selected.first_name||selected.username||`Affiliate #${selected.id}`}</h2><p>@{selected.username||'no username'}</p><p>Status: {selected.account_status||'ACTIVE'}</p><p>Telegram ID: {selected.telegram_id}</p><div className="mt-4 flex flex-wrap gap-2"><button className="icon-button" onClick={async()=>setDetail(await adminReferrals())}>View referrals</button><button className="icon-button" onClick={async()=>{try{setDetail(await adminPayout(selected.id))}catch(e){setError('No payout details found.')}}}>View payout</button>{selected.account_status==='REVOKED'?<button className="primary-button" disabled={pending} onClick={()=>mutate(()=>adminRestore(selected.id),'Affiliate restored')}>{pending?'Restoring...':'Restore'}</button>:<button className="primary-button" disabled={pending} onClick={()=>{if(confirm('Are you sure you want to revoke this affiliate? They will not be able to create another affiliate account or generate a new referral link until an administrator restores them.'))void mutate(()=>adminRevoke(selected.id),'Affiliate revoked')}}>{pending?'Revoking...':'Revoke'}</button>}</div>{detail&&<div className="mt-4 space-y-2">{detail.account_number?<><p>Account Name: {detail.account_name}</p><p>Bank Name: {detail.bank_name}</p><p>Account Number: {detail.account_number}</p></>:Array.isArray(detail)?detail.filter((r:any)=>r.referrer_id===selected.id).map((r:any)=><button className="glass-card block w-full p-3 text-left" key={r.id} onClick={async()=>{setRefDetail(await adminReferral(r.id))}}>Referral #{r.id}</button>):Object.entries(detail).map(([k,v])=><p key={k}><b>{k}</b>: {String(v)}</p>)}</div>}</div>}{error&&<p role="alert" className="mt-3">{error}</p>}{notice&&<p className="mt-3 text-emerald-300">{notice}</p>}</main>;
- return <main className="app-shell min-h-screen px-4 pt-safe"><button className="icon-button" onClick={onBack}>Back</button><h1 className="section-title mt-5">Admin Dashboard</h1><nav className="mt-4 grid grid-cols-2 gap-2">{['Overview','Affiliates','Referrals','Administrators','Audit Log','Broadcasts'].map(x=><button className="icon-button" key={x} onClick={()=>setTab(x)}>{x}</button>)}</nav>{loading?<div aria-label="Loading admin data" className="glass-card mt-5 h-48 animate-pulse"/>:error?<div><p role="alert">{error}</p><button className="primary-button" onClick={load}>Retry</button></div>:tab==='Overview'?<div className="mt-5 grid grid-cols-2 gap-3"><div className="glass-card p-4">Total affiliates: {items.length}</div><div className="glass-card p-4">Active affiliates: {items.filter(x=>x.account_status==='ACTIVE').length}</div><div className="glass-card p-4">Revoked affiliates: {items.filter(x=>x.account_status==='REVOKED').length}</div></div>:tab==='Broadcasts'?<BroadcastComposer onCreated={load}/>:<section className="mt-5 space-y-3">{items.length===0?<p>No {tab.toLowerCase()} found.</p>:items.map(x=><div className="glass-card p-4" key={x.id}><button className="block w-full text-left" onClick={()=>tab==='Affiliates'?setSelected(x):tab==='Referrals'&&void adminReferral(x.id).then(setRefDetail)}><b>{x.username?`@${x.username}`:x.action||`#${x.id}`}</b><p className="text-sm text-zinc-400">{x.account_status||x.action||x.status||''}</p></button>{tab==='Administrators'&&!x.is_protected_admin&&<div className="mt-2 flex gap-2"><button disabled={pending} onClick={()=>{if(confirm('Remove this administrator?'))void mutate(()=>adminRemove(x.id),'Administrator removed')}}>Remove</button><button disabled={pending} onClick={()=>{if(confirm('Demote this administrator?'))void mutate(()=>adminDemote(x.id),'Administrator demoted')}}>Demote</button></div>}{tab==='Administrators'&&x.is_protected_admin&&<p className="text-xs text-amber-300">Protected administrator</p>}</div>)}</section>}</main>;
+interface AdminData {
+  affiliates: AdminAffiliate[];
+  referrals: AdminReferral[];
+  administrators: AdminUser[];
+  auditLogs: AdminAuditLog[];
+  broadcasts: AdminBroadcast[];
 }
 
-function BroadcastComposer({onCreated}:{onCreated:()=>Promise<void>}) { const [message,setMessage]=useState(''); const [busy,setBusy]=useState(false); const [done,setDone]=useState<any>(null); const submit=async()=>{if(!message.trim()||busy)return; if(!confirm('Send this broadcast to all eligible affiliates?'))return; setBusy(true); try{setDone(await adminCreateBroadcast(message));setMessage('');await onCreated()} finally{setBusy(false)}}; return <section className="mt-5 space-y-3"><textarea aria-label="Broadcast message" className="w-full rounded-md bg-white/10 p-3" value={message} onChange={e=>setMessage(e.target.value)} placeholder="Write a message"/><p className="text-sm text-zinc-400">Preview: {message||'Your message preview appears here.'}</p><button className="primary-button" disabled={busy||!message.trim()} onClick={submit}>{busy?'Sending...':'Send broadcast'}</button>{done&&<p className="text-emerald-300">Broadcast queued.</p>}</section> }
+const emptyAdminData: AdminData = {
+  affiliates: [],
+  referrals: [],
+  administrators: [],
+  auditLogs: [],
+  broadcasts: [],
+};
+
+const sectionLabels: Record<AdminSection, string> = {
+  overview: 'overview',
+  affiliates: 'affiliates',
+  referrals: 'referrals',
+  broadcasts: 'broadcasts',
+  administrators: 'administrators',
+  'audit-log': 'audit log',
+};
+
+interface AdminDashboardProps {
+  admin: AdminUserSummary;
+  onBack: () => void;
+}
+
+export function AdminDashboard({ admin, onBack }: AdminDashboardProps) {
+  const [section, setSection] = useState<AdminSection>('overview');
+  const [data, setData] = useState<AdminData>(emptyAdminData);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionPending, setActionPending] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
+  const [selectedAffiliateId, setSelectedAffiliateId] = useState<number | null>(null);
+
+  const loadSection = useCallback(async (target: AdminSection) => {
+    setLoading(true);
+    setError('');
+    try {
+      if (target === 'overview') {
+        const [affiliates, referrals, auditLogs] = await Promise.all([
+          adminAffiliates(),
+          adminReferrals(),
+          adminAuditLogs(),
+        ]);
+        setData((current) => ({ ...current, affiliates, referrals, auditLogs }));
+      } else if (target === 'affiliates') {
+        const affiliates = await adminAffiliates();
+        setData((current) => ({ ...current, affiliates }));
+      } else if (target === 'referrals') {
+        const referrals = await adminReferrals();
+        setData((current) => ({ ...current, referrals }));
+      } else if (target === 'broadcasts') {
+        const [broadcasts, affiliates] = await Promise.all([
+          adminBroadcasts(),
+          adminAffiliates(),
+        ]);
+        setData((current) => ({ ...current, broadcasts, affiliates }));
+      } else if (target === 'administrators') {
+        const [administrators, affiliates] = await Promise.all([
+          adminAdministrators(),
+          adminAffiliates(),
+        ]);
+        setData((current) => ({ ...current, administrators, affiliates }));
+      } else {
+        const auditLogs = await adminAuditLogs();
+        setData((current) => ({ ...current, auditLogs }));
+      }
+    } catch {
+      setError(sectionLabels[target]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section !== 'affiliates') setSelectedAffiliateId(null);
+    void loadSection(section);
+  }, [loadSection, section]);
+
+  const runAction = async (action: () => Promise<unknown>, notice: string): Promise<boolean> => {
+    if (actionPending) return false;
+    setActionPending(true);
+    setActionError('');
+    setActionNotice('');
+    try {
+      await action();
+      setActionNotice(notice);
+      await loadSection(section);
+      return true;
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : 'The action could not be completed.');
+      return false;
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const revokeAffiliate = (affiliate: AdminAffiliate) => {
+    if (!window.confirm(`Revoke ${affiliate.username ? `@${affiliate.username}` : 'this affiliate'}? They cannot create a new affiliate lifecycle until restored.`)) return;
+    void runAction(() => adminRevoke(affiliate.id), 'Affiliate revoked.');
+  };
+
+  const restoreAffiliate = (affiliate: AdminAffiliate) => {
+    if (!window.confirm(`Restore ${affiliate.username ? `@${affiliate.username}` : 'this affiliate'} to their existing lifecycle?`)) return;
+    void runAction(() => adminRestore(affiliate.id), 'Affiliate restored.');
+  };
+
+  const addAdministrator = (affiliateId: number) => {
+    void runAction(() => adminAdd(affiliateId), 'Administrator added.');
+  };
+
+  const removeAdministrator = (administrator: AdminUser) => {
+    if (!window.confirm('Remove this administrator? They will keep their affiliate account.')) return;
+    void runAction(() => adminRemove(administrator.id), 'Administrator removed.');
+  };
+
+  const demoteAdministrator = (administrator: AdminUser) => {
+    if (!window.confirm('Demote this administrator? They will keep their affiliate account.')) return;
+    void runAction(() => adminDemote(administrator.id), 'Administrator demoted.');
+  };
+
+  const sendBroadcast = async (message: string) => {
+    return runAction(() => adminCreateBroadcast(message), 'Broadcast queued for delivery.');
+  };
+
+  const actionBanner = actionError || actionNotice;
+
+  return (
+    <AdminShell
+      activeSection={section}
+      onSectionChange={setSection}
+      onExit={onBack}
+      admin={admin}
+    >
+      {actionBanner && (
+        <div
+          role={actionError ? 'alert' : 'status'}
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+            actionError
+              ? 'border-rose-400/25 bg-rose-400/10 text-rose-200'
+              : 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+          }`}
+        >
+          {actionBanner}
+        </div>
+      )}
+
+      {section === 'affiliates' && selectedAffiliateId !== null ? (
+        <AffiliateDetailPage
+          affiliateId={selectedAffiliateId}
+          onBack={() => setSelectedAffiliateId(null)}
+          onChanged={async () => {
+            await loadSection('affiliates');
+          }}
+        />
+      ) : loading ? (
+        <AdminLoading label={sectionLabels[section]} />
+      ) : error ? (
+        <AdminError message={error} onRetry={() => void loadSection(section)} />
+      ) : section === 'overview' ? (
+        <OverviewPage
+          affiliates={data.affiliates}
+          referrals={data.referrals}
+          auditLogs={data.auditLogs}
+        />
+      ) : section === 'affiliates' ? (
+        <AffiliatesPage
+          affiliates={data.affiliates}
+          pending={actionPending}
+          onSelect={(affiliate) => setSelectedAffiliateId(affiliate.id)}
+          onRevoke={revokeAffiliate}
+          onRestore={restoreAffiliate}
+        />
+      ) : section === 'referrals' ? (
+        <ReferralsPage referrals={data.referrals} />
+      ) : section === 'broadcasts' ? (
+        <BroadcastsPage
+          broadcasts={data.broadcasts}
+          eligibleCount={data.affiliates.filter((affiliate) => affiliate.account_status === 'ACTIVE').length}
+          sending={actionPending}
+          onSend={sendBroadcast}
+        />
+      ) : section === 'administrators' ? (
+        <AdministratorsPage
+          administrators={data.administrators}
+          affiliates={data.affiliates}
+          pending={actionPending}
+          onAdd={addAdministrator}
+          onRemove={removeAdministrator}
+          onDemote={demoteAdministrator}
+        />
+      ) : (
+        <AuditLogPage auditLogs={data.auditLogs} />
+      )}
+    </AdminShell>
+  );
+}

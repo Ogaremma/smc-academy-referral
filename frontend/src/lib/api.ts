@@ -1,4 +1,15 @@
-import type { AuthResponse, DashboardResponse, UserProfileResponse } from '@/types/api';
+import type {
+  AdminAffiliate,
+  AdminAffiliateDetail,
+  AdminAuditLog,
+  AdminBroadcast,
+  AdminPayout,
+  AdminReferral,
+  AdminUser,
+  AuthResponse,
+  DashboardResponse,
+  UserProfileResponse,
+} from '@/types/api';
 import { sessionToken } from '@/lib/session';
 
 const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '');
@@ -7,7 +18,7 @@ const API_BASE_URL = configuredApiUrl && (!configuredApiUrl.startsWith('http://l
   ? configuredApiUrl
   : isLocalHost ? 'http://localhost:8000' : 'https://smc-academy-referral.onrender.com';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly url: string) {
     super(message);
     this.name = 'ApiError';
@@ -47,18 +58,25 @@ function authenticatedHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function authenticateTelegram(initData: string, startParam?: string): Promise<AuthResponse> {
+export async function authenticateTelegram(
+  initData: string,
+  startParam?: string,
+  createAccount = false,
+): Promise<AuthResponse> {
   const response = await request<AuthResponse>('/api/v1/auth/telegram', {
     method: 'POST',
-    body: JSON.stringify({ init_data: initData, start_param: startParam || null, create_account: false }),
+    body: JSON.stringify({
+      init_data: initData,
+      start_param: startParam || null,
+      create_account: createAccount,
+    }),
   });
   sessionToken.set(response.access_token);
   return response;
 }
-export async function registerAffiliate(): Promise<AuthResponse> {
-  const response = await request<AuthResponse>('/api/v1/auth/affiliate/register', { method: 'POST', headers: authenticatedHeaders() });
-  sessionToken.set(response.access_token);
-  return response;
+
+export async function registerAffiliate(initData: string, startParam?: string): Promise<AuthResponse> {
+  return authenticateTelegram(initData, startParam, true);
 }
 
 export const getProfile = (): Promise<UserProfileResponse> =>
@@ -75,17 +93,54 @@ export async function deleteAccount(): Promise<void> {
   sessionToken.clear();
 }
 export const getReferrals = () => request<any>('/api/v1/referrals', { headers: authenticatedHeaders() });
-export const getReferral = (id:number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });
-export const adminAffiliates = () => request<any[]>('/api/v1/admin/affiliates', {headers: authenticatedHeaders()});
-export const adminReferrals = () => request<any[]>('/api/v1/admin/referrals', {headers: authenticatedHeaders()});
-export const adminAdministrators = () => request<any[]>('/api/v1/admin/administrators', {headers: authenticatedHeaders()});
-export const adminAuditLogs = () => request<any[]>('/api/v1/admin/audit-logs', {headers: authenticatedHeaders()});
-export const adminRevoke = (id:number) => request(`/api/v1/admin/affiliates/${id}/revoke`, {method:'POST',headers:authenticatedHeaders()});
-export const adminRestore = (id:number) => request(`/api/v1/admin/affiliates/${id}/restore`, {method:'POST',headers:authenticatedHeaders()});
-export const adminPayout = (id:number) => request(`/api/v1/admin/affiliates/${id}/payout`, {headers:authenticatedHeaders()});
-export const adminReferral = (id:number) => request<any>(`/api/v1/admin/referrals/${id}`, {headers:authenticatedHeaders()});
-export const adminAdd = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'POST',headers:authenticatedHeaders()});
-export const adminRemove = (id:number) => request(`/api/v1/admin/administrators/${id}`, {method:'DELETE',headers:authenticatedHeaders()});
-export const adminDemote = (id:number) => request(`/api/v1/admin/administrators/${id}/demote`, {method:'POST',headers:authenticatedHeaders()});
-export const adminBroadcasts = () => request<any[]>('/api/v1/admin/broadcasts', {headers:authenticatedHeaders()});
-export const adminCreateBroadcast = (message:string) => request<any>('/api/v1/admin/broadcasts', {method:'POST',headers:authenticatedHeaders(),body:JSON.stringify({message})});
+export const getReferral = (id: number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });
+
+export const adminAffiliates = (): Promise<AdminAffiliate[]> =>
+  request('/api/v1/admin/affiliates', { headers: authenticatedHeaders() });
+
+export const adminReferrals = (affiliateId?: number): Promise<AdminReferral[]> => {
+  const path = affiliateId === undefined
+    ? '/api/v1/admin/referrals'
+    : `/api/v1/admin/referrals?affiliate_id=${encodeURIComponent(String(affiliateId))}`;
+  return request(path, { headers: authenticatedHeaders() });
+};
+
+export const adminAdministrators = (): Promise<AdminUser[]> =>
+  request('/api/v1/admin/administrators', { headers: authenticatedHeaders() });
+
+export const adminAuditLogs = (): Promise<AdminAuditLog[]> =>
+  request('/api/v1/admin/audit-logs', { headers: authenticatedHeaders() });
+
+export const adminAffiliate = (id: number): Promise<AdminAffiliateDetail> =>
+  request(`/api/v1/admin/affiliates/${id}`, { headers: authenticatedHeaders() });
+
+export const adminRevoke = (id: number) =>
+  request(`/api/v1/admin/affiliates/${id}/revoke`, { method: 'POST', headers: authenticatedHeaders() });
+
+export const adminRestore = (id: number) =>
+  request(`/api/v1/admin/affiliates/${id}/restore`, { method: 'POST', headers: authenticatedHeaders() });
+
+export const adminPayout = (id: number): Promise<AdminPayout> =>
+  request(`/api/v1/admin/affiliates/${id}/payout`, { headers: authenticatedHeaders() });
+
+export const adminReferral = (id: number): Promise<AdminReferral> =>
+  request(`/api/v1/admin/referrals/${id}`, { headers: authenticatedHeaders() });
+
+export const adminAdd = (id: number) =>
+  request(`/api/v1/admin/administrators/${id}`, { method: 'POST', headers: authenticatedHeaders() });
+
+export const adminRemove = (id: number) =>
+  request(`/api/v1/admin/administrators/${id}`, { method: 'DELETE', headers: authenticatedHeaders() });
+
+export const adminDemote = (id: number) =>
+  request(`/api/v1/admin/administrators/${id}/demote`, { method: 'POST', headers: authenticatedHeaders() });
+
+export const adminBroadcasts = (): Promise<AdminBroadcast[]> =>
+  request('/api/v1/admin/broadcasts', { headers: authenticatedHeaders() });
+
+export const adminCreateBroadcast = (message: string): Promise<AdminBroadcast> =>
+  request('/api/v1/admin/broadcasts', {
+    method: 'POST',
+    headers: authenticatedHeaders(),
+    body: JSON.stringify({ message }),
+  });
