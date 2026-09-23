@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { AdminReferral } from '@/types/api';
 import { AdminDataTable, type SortDirection } from '@/components/admin/AdminDataTable';
 import { IdentityCell, adminIdentity } from '@/components/admin/IdentityCell';
+import { ReferralDetailPanel } from '@/components/admin/ReferralDetailPanel';
 import { StatusBadge } from '@/components/admin/StatusBadge';
-import { candidateIdentity, formatDate, formatDateTime } from '@/components/admin/format';
+import { candidateIdentity, formatDate } from '@/components/admin/format';
 
 export function ReferralsPage({ referrals }: { referrals: AdminReferral[] }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'ALL' | 'verified' | 'pending' | 'rejected'>('ALL');
   const [sortKey, setSortKey] = useState('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [selectedReferral, setSelectedReferral] = useState<AdminReferral | null>(null);
+  const [selectedReferralId, setSelectedReferralId] = useState<number | null>(null);
 
   const filteredReferrals = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -21,6 +22,7 @@ export function ReferralsPage({ referrals }: { referrals: AdminReferral[] }) {
         adminIdentity(referral.referrer),
         referral.candidate_telegram_handle,
         referral.candidate_email,
+        referral.referral_code,
         referral.status,
       ]
         .filter(Boolean)
@@ -56,40 +58,12 @@ export function ReferralsPage({ referrals }: { referrals: AdminReferral[] }) {
     setSortDirection('asc');
   };
 
-  if (selectedReferral) {
+  if (selectedReferralId !== null) {
     return (
-      <section className="space-y-4">
-        <button type="button" className="icon-button" onClick={() => setSelectedReferral(null)} aria-label="Back to referrals">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
-            <div>
-              <p className="text-xs uppercase tracking-[.16em] text-zinc-500">Referral details</p>
-              <h2 className="mt-1 text-xl font-semibold">{candidateIdentity(selectedReferral)}</h2>
-            </div>
-            <StatusBadge status={selectedReferral.status} />
-          </div>
-          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-zinc-500">Affiliate</dt>
-              <dd className="mt-1 font-medium">{adminIdentity(selectedReferral.referrer)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-zinc-500">Candidate Telegram</dt>
-              <dd className="mt-1 font-medium">{selectedReferral.candidate_telegram_handle || 'Not provided'}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-zinc-500">Candidate email</dt>
-              <dd className="mt-1 font-medium">{selectedReferral.candidate_email || 'Not provided'}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-zinc-500">Created</dt>
-              <dd className="mt-1 font-medium">{formatDateTime(selectedReferral.created_at)}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
+      <ReferralDetailPanel
+        referralId={selectedReferralId}
+        onBack={() => setSelectedReferralId(null)}
+      />
     );
   }
 
@@ -163,7 +137,11 @@ export function ReferralsPage({ referrals }: { referrals: AdminReferral[] }) {
             key: 'actions',
             header: 'Actions',
             render: (referral) => (
-              <button type="button" className="rounded-md border border-white/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/[0.08]" onClick={() => setSelectedReferral(referral)}>
+              <button
+                type="button"
+                className="rounded-md border border-white/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/[0.08]"
+                onClick={() => setSelectedReferralId(referral.id)}
+              >
                 View
               </button>
             ),

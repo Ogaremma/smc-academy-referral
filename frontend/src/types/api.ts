@@ -43,6 +43,43 @@ export interface DashboardData {
   dashboard: DashboardResponse;
 }
 
+export interface ReferralSummary {
+  id: number;
+  name: string;
+  email: string | null;
+  telegram: string | null;
+  course: string | null;
+  status: string;
+  created_at: string;
+  registered_at: string | null;
+  verified_at: string | null;
+}
+
+export interface ReferralDetail extends ReferralSummary {
+  form_fields: SubmissionField[];
+}
+
+export interface ReferralsResponse {
+  total: number;
+  registered: number;
+  referrals: ReferralSummary[];
+}
+
+export interface PayoutDetails {
+  account_name: string;
+  bank_name: string;
+  account_number: string;
+  updated_at: string;
+}
+
+export interface PayoutInput {
+  account_name: string;
+  bank_name: string;
+  account_number: string;
+}
+
+export type AdminPayout = PayoutDetails;
+
 export interface AdminUserSummary {
   id: number;
   telegram_id: number;
@@ -69,13 +106,25 @@ export interface AdminAffiliateDetail extends AdminAffiliate {
   is_active: boolean;
 }
 
+export interface SubmissionField {
+  label: string;
+  value: string;
+  category: 'registration' | 'payment' | string;
+  is_link: boolean;
+}
+
 export interface AdminReferral {
   id: number;
   referrer: AdminUserSummary;
+  referral_code: string | null;
   candidate_email: string | null;
   candidate_telegram_handle: string | null;
   status: 'verified' | 'pending' | 'rejected' | string;
   created_at: string;
+  registered_at: string | null;
+  verified_at: string | null;
+  payment_proof_url?: string | null;
+  form_fields?: SubmissionField[];
 }
 
 export interface AdminAuditLog {
@@ -97,14 +146,4 @@ export interface AdminBroadcast {
   failed_count: number;
   created_at: string;
   completed_at: string | null;
-}
-
-export interface AdminPayout {
-  id: number;
-  user_id: number;
-  account_name: string;
-  bank_name: string;
-  account_number: string;
-  created_at: string;
-  updated_at: string;
 }

@@ -8,6 +8,10 @@ import type {
   AdminUser,
   AuthResponse,
   DashboardResponse,
+  PayoutDetails,
+  PayoutInput,
+  ReferralDetail,
+  ReferralsResponse,
   UserProfileResponse,
 } from '@/types/api';
 import { sessionToken } from '@/lib/session';
@@ -92,8 +96,19 @@ export async function deleteAccount(): Promise<void> {
   await request<void>('/api/v1/auth/account', { method: 'DELETE', headers: authenticatedHeaders() });
   sessionToken.clear();
 }
-export const getReferrals = () => request<any>('/api/v1/referrals', { headers: authenticatedHeaders() });
-export const getReferral = (id: number) => request<any>(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });
+export const getReferrals = (): Promise<ReferralsResponse> =>
+  request('/api/v1/referrals', { headers: authenticatedHeaders() });
+export const getReferral = (id: number): Promise<ReferralDetail> =>
+  request(`/api/v1/referrals/${id}`, { headers: authenticatedHeaders() });
+
+export const getPayout = (): Promise<PayoutDetails> =>
+  request('/api/v1/payout', { headers: authenticatedHeaders() });
+export const savePayout = (payload: PayoutInput): Promise<PayoutDetails> =>
+  request('/api/v1/payout', {
+    method: 'PUT',
+    headers: authenticatedHeaders(),
+    body: JSON.stringify(payload),
+  });
 
 export const adminAffiliates = (): Promise<AdminAffiliate[]> =>
   request('/api/v1/admin/affiliates', { headers: authenticatedHeaders() });

@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     # Confirmed referral field entry ID from the SMC Academy Google Form
     GOOGLE_FORM_REFERRAL_ENTRY_ID: Optional[str] = "entry.1398965380"
 
-
     # Frontend Mini App URL
     FRONTEND_URL: str = "http://localhost:5173"
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
@@ -35,7 +34,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_allowed_origins(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip()
+            for origin in self.CORS_ALLOWED_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
     def validate_production(self) -> None:
         """Reject unsafe or incomplete settings before starting production."""
@@ -62,7 +65,10 @@ class Settings(BaseSettings):
                 errors.append(f"{name} must be a valid HTTPS URL")
             if parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
                 errors.append(f"{name} must not point to localhost")
-        if urlparse(self.TELEGRAM_MINI_APP_BASE_URL).hostname not in {"t.me", "telegram.me"}:
+        if urlparse(self.TELEGRAM_MINI_APP_BASE_URL).hostname not in {
+            "t.me",
+            "telegram.me",
+        }:
             errors.append("TELEGRAM_MINI_APP_BASE_URL must use a Telegram t.me URL")
 
         origins = self.cors_allowed_origins
@@ -75,15 +81,15 @@ class Settings(BaseSettings):
             elif parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
                 errors.append("CORS_ALLOWED_ORIGINS must not contain localhost")
             elif parsed.scheme != "https" or not parsed.netloc:
-                errors.append("CORS_ALLOWED_ORIGINS entries must be valid HTTPS origins")
+                errors.append(
+                    "CORS_ALLOWED_ORIGINS entries must be valid HTTPS origins"
+                )
 
         if errors:
             raise ValueError("Invalid production configuration: " + "; ".join(errors))
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
 

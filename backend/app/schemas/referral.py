@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -18,16 +18,33 @@ class DashboardResponse(BaseModel):
     registration_form_url: Optional[str] = None
     recent_verified_activity: List[ReferralActivityItem]
 
+
+class SubmissionFieldRead(BaseModel):
+    """A Google Form answer prepared for display."""
+
+    label: str
+    value: str
+    category: str
+    is_link: bool = False
+
+
 class ReferralSummary(BaseModel):
     id: int
     name: str
+    email: Optional[str] = None
+    telegram: Optional[str] = None
     course: Optional[str] = None
     status: str
     created_at: datetime
+    registered_at: Optional[datetime] = None
+    verified_at: Optional[datetime] = None
+
 
 class ReferralDetail(ReferralSummary):
-    fields: Dict[str, Any]
-    registered_at: Optional[datetime] = None
+    # Every answer stored for the submission. The affiliate and the admin both
+    # receive the complete set; the frontend groups it into sections.
+    form_fields: List[SubmissionFieldRead] = []
+
 
 class ReferralsResponse(BaseModel):
     total: int

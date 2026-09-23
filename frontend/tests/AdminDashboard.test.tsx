@@ -90,12 +90,29 @@ const referrals = [
   {
     id: 9,
     referrer: { id: 1, telegram_id: 101, username: 'alice', first_name: 'Alice', last_name: 'Affiliate', photo_url: null },
+    referral_code: 'SMC-ALICE',
     candidate_email: 'candidate@example.com',
     candidate_telegram_handle: '@candidate',
     status: 'verified',
     created_at: '2026-09-04T10:00:00Z',
+    registered_at: '2026-09-04T09:50:00Z',
+    verified_at: '2026-09-04T10:00:00Z',
   },
 ];
+
+const referralDetail = {
+  ...referrals[0],
+  payment_proof_url: 'https://drive.google.com/file/d/abc123/view',
+  form_fields: [
+    { label: 'Full Name', value: 'Candidate One', category: 'registration', is_link: false },
+    { label: 'Email Address', value: 'candidate@example.com', category: 'registration', is_link: false },
+    { label: 'Program', value: 'Forex Trading', category: 'registration', is_link: false },
+    { label: 'Class Preference', value: 'Online', category: 'registration', is_link: false },
+    { label: 'Payment Reference', value: 'TRX-99', category: 'payment', is_link: false },
+    { label: 'Payment Screenshot', value: 'https://drive.google.com/file/d/abc123/view', category: 'payment', is_link: true },
+    { label: 'How did you hear about us?', value: 'A friend', category: 'other', is_link: false },
+  ],
+};
 const administrators = [
   { ...alice, id: 3, telegram_id: 103, username: 'Web3Launcherr', first_name: 'Web3', last_name: 'Launcher', is_admin: true, is_protected_admin: true },
   { ...bob, id: 4, telegram_id: 104, username: 'operator', first_name: 'Operator', last_name: 'User', is_admin: true, is_protected_admin: false },
@@ -144,7 +161,7 @@ describe('AdminDashboard', () => {
       created_at: '2026-09-01T11:00:00Z',
       updated_at: '2026-09-01T11:00:00Z',
     });
-    api.adminReferral.mockResolvedValue(referrals[0]);
+    api.adminReferral.mockResolvedValue(referralDetail);
   });
 
   it('renders overview KPIs, recent referrals, and admin activity', async () => {
@@ -290,7 +307,7 @@ describe('AdminDashboard', () => {
     expect(screen.getByText('Protected administrator')).toBeInTheDocument();
   });
 
-  it('renders referral records and safe detail fields', async () => {
+  it('opens a referral and shows the submitted Google Form information', async () => {
     renderDashboard();
     fireEvent.click(screen.getByRole('button', { name: 'Referrals' }));
 
@@ -300,8 +317,22 @@ describe('AdminDashboard', () => {
     expect(screen.queryByText('#9')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'View' }));
-    expect(await screen.findByText('Candidate Telegram')).toBeInTheDocument();
-    expect(screen.getByText('candidate@example.com')).toBeInTheDocument();
+
+    expect(await screen.findByText('Registration information')).toBeInTheDocument();
+    expect(screen.getByText('Payment verification')).toBeInTheDocument();
+    expect(screen.getByText('Other information')).toBeInTheDocument();
+    expect(screen.getByText('Full Name')).toBeInTheDocument();
+    expect(screen.getByText('Candidate One')).toBeInTheDocument();
+    expect(screen.getByText('Program')).toBeInTheDocument();
+    expect(screen.getByText('Forex Trading')).toBeInTheDocument();
+    expect(screen.getByText('Class Preference')).toBeInTheDocument();
+    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByText('Payment Screenshot')).toBeInTheDocument();
+    expect(screen.getByText('TRX-99')).toBeInTheDocument();
+    expect(screen.getByText('A friend')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open payment proof/ })).toBeInTheDocument();
+    expect(screen.getByText('SMC-ALICE')).toBeInTheDocument();
+    expect(api.adminReferral).toHaveBeenCalledWith(9);
   });
 
   it('composes and queues a broadcast with eligible recipient count', async () => {

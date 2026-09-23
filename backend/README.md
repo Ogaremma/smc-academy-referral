@@ -54,7 +54,49 @@ backend/
 - **`User`**: Stores Telegram user identity derived from verified `initData` (`telegram_id`, `username`, `first_name`, `last_name`, `photo_url`).
 - **`ReferralCode`**: Unique uppercase 6-character code (e.g. `SMC-7K2P9X`) assigned to exactly one user. Excludes ambiguous characters (`0`, `O`, `1`, `I`).
 - **`Referral`**: Records verified form submissions tied to a referrer. `google_form_response_id` is enforced with a `UNIQUE` constraint for idempotency.
-- **`WebhookLog`**: Audit log recording raw payloads, status (`processed`, `duplicate`, `invalid_code`, `unauthorized`), error messages, and timestamps.
+- **`WebhookLog`**: Audit log recording the raw webhook payload, status (`processed`, `duplicate`, `invalid_code`, `unauthorized`), error messages, and timestamps. The stored payload retains every Google Form answer (`answers`) and is the source of the registration details shown on the affiliate and admin dashboards.
+- **`PayoutDetails`**: One row per affiliate holding `account_name`, `bank_name`, and `account_number`. Affiliates create and update their own row through `/api/v1/payout`; administrators read it through `/api/v1/admin/affiliates/{id}/payout`.
+
+---
+
+## Google Form Webhook Contract
+
+`POST /api/v1/webhooks/google-form` accepts:
+
+```json
+{
+  "response_id": "2_ABaOnud...",
+  "referral_code": "SMC-7K2P9X",
+  "submitted_at": "2026-09-10T09:00:00Z",
+  "candidate_email": "optional@example.com",
+  "candidate_telegram_handle": "@optional",
+  "answers": [
+    { "question": "Full Name", "answer": "Jane Doe" },
+    { "question": "Phone Number", "answer": "08010000000" },
+    { "question": "Payment Screenshot", "answer": "https://drive.google.com/..." }
+  ]
+}
+```
+
+`answers` carries every answer from the submission, including file uploads as Google Drive links, and is
+stored verbatim in `webhook_logs.raw_payload`. `GET /api/v1/referrals/{id}` returns the complete answer set
+for the owning affiliate and `GET /api/v1/admin/referrals/{id}` returns it for admins, so both see the same
+submitted information (registration details, payment information, and payment proof). Only internal
+transport metadata is stripped. `answers` is optional so older Google Apps Script deployments keep working,
+but it must be sent for registration details to appear in the dashboards.
+
+### Historical reconciliation
+
+`POST /api/v1/webhooks/google-form/reconcile` (same `X-Webhook-Secret` auth) re-imports submissions that
+predate the `answers` field. It is idempotent and never duplicates a referral:
+
+* a referral stored for the response id is enriched in place with its missing answers;
+* a submission with no referral is created only when its referral code resolves to a known, active code
+  (or, failing that, matched to an existing referral by candidate email/Telegram under the same affiliate);
+* submissions that cannot be matched safely are reported as `unmatched` with a reason and are left alone.
+
+The response reports `created`, `enriched`, `unchanged`, and `unmatched` counts plus a per-response result.
+Pass `dry_run: true` to preview the outcome without writing.
 
 ---
 

@@ -13,6 +13,7 @@ import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminError, AdminLoading } from '@/components/admin/AdminStates';
 import { AdminKpi } from '@/components/admin/AdminKpi';
 import { IdentityCell } from '@/components/admin/IdentityCell';
+import { ReferralDetailPanel } from '@/components/admin/ReferralDetailPanel';
 import { StatusBadge } from '@/components/admin/StatusBadge';
 import { candidateIdentity, formatDate, formatDateTime } from '@/components/admin/format';
 
@@ -32,6 +33,7 @@ export function AffiliateDetailPage({ affiliateId, onBack, onChanged }: Affiliat
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutError, setPayoutError] = useState('');
   const [payoutFailed, setPayoutFailed] = useState(false);
+  const [selectedReferralId, setSelectedReferralId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +105,15 @@ export function AffiliateDetailPage({ affiliateId, onBack, onChanged }: Affiliat
   if (loading && !affiliate) return <AdminLoading label="affiliate details" />;
   if (error && !affiliate) return <AdminError message="affiliate details" onRetry={load} />;
   if (!affiliate) return null;
+
+  if (selectedReferralId !== null) {
+    return (
+      <ReferralDetailPanel
+        referralId={selectedReferralId}
+        onBack={() => setSelectedReferralId(null)}
+      />
+    );
+  }
 
   return (
     <section className="space-y-5">
@@ -214,6 +225,19 @@ export function AffiliateDetailPage({ affiliateId, onBack, onChanged }: Affiliat
               key: 'created_at',
               header: 'Date',
               render: (referral) => <span className="text-zinc-400">{formatDateTime(referral.created_at)}</span>,
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              render: (referral) => (
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/[0.08]"
+                  onClick={() => setSelectedReferralId(referral.id)}
+                >
+                  View
+                </button>
+              ),
             },
           ]}
         />

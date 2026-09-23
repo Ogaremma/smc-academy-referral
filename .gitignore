@@ -34,6 +34,7 @@ build/
 htmlcov/
 .pytest_cache/
 .pytest-tmp/
+.tmp_pytest/
 
 # SQLite development databases
 *.db

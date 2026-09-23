@@ -5,9 +5,15 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_admin
+from app.api.payout import PayoutRead
 from app.db.models import AuditLog, User, Referral, ReferralCode, PayoutDetails, Broadcast
 from app.db.session import AsyncSessionLocal
 from app.services.broadcast_service import deliver_broadcast
+from app.services.submission_service import (
+    PAYMENT,
+    load_submission_fields,
+    response_ids_with_answers,
+)
 from app.db.session import get_db
 
 router = APIRouter(prefix="/admin", tags=["Administration"])
@@ -149,8 +155,9 @@ async def affiliate_detail(user_id: int, current=Depends(get_current_admin), db:
 @router.get("/referrals")
 async def all_referrals(affiliate_id: int | None = None, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
     stmt = (
-        select(Referral, User)
+        select(Referral, User, ReferralCode)
         .join(User, Referral.referrer_id == User.id)
+        .join(ReferralCode, Referral.referral_code_id == ReferralCode.id)
         .order_by(Referral.created_at.desc())
     )
     if affiliate_id is not None: stmt = stmt.where(Referral.referrer_id == affiliate_id)
@@ -159,35 +166,99 @@ async def all_referrals(affiliate_id: int | None = None, current=Depends(get_cur
         {
             "id": referral.id,
             "referrer": _user_summary(referrer),
+            "referral_code": referral_code.code,
             "candidate_email": referral.candidate_email,
             "candidate_telegram_handle": referral.candidate_telegram_handle,
             "status": referral.status,
             "created_at": referral.created_at,
+            "registered_at": referral.registered_at,
+            "verified_at": referral.verified_at,
         }
-        for referral, referrer in rows
+        for referral, referrer, referral_code in rows
     ]
+
+@router.get("/referrals/submission-health")
+async def referrals_submission_health(current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    """Diagnostic: stored referrals that are still missing their form answers.
+
+    Used to investigate registrations that predate the answers-aware webhook and
+    to confirm a reconciliation run recovered everything it could.
+    """
+    rows = (
+        await db.execute(
+            select(Referral, User, ReferralCode)
+            .join(User, Referral.referrer_id == User.id)
+            .join(ReferralCode, Referral.referral_code_id == ReferralCode.id)
+            .order_by(Referral.created_at.desc())
+        )
+    ).all()
+    covered = await response_ids_with_answers(
+        db, [referral.google_form_response_id for referral, _, _ in rows]
+    )
+    missing = [
+        {
+            "id": referral.id,
+            "referral_code": referral_code.code,
+            "affiliate": _user_summary(referrer),
+            "response_id": referral.google_form_response_id,
+            "candidate_email": referral.candidate_email,
+            "candidate_telegram_handle": referral.candidate_telegram_handle,
+            "status": referral.status,
+            "registered_at": referral.registered_at,
+        }
+        for referral, referrer, referral_code in rows
+        if referral.google_form_response_id not in covered
+    ]
+    return {
+        "referrals_missing_answers": len(missing),
+        "missing": missing,
+    }
+
 
 @router.get("/referrals/{referral_id}")
 async def referral_detail(referral_id: int, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
     row = (
         await db.execute(
-            select(Referral, User)
+            select(Referral, User, ReferralCode)
             .join(User, Referral.referrer_id == User.id)
+            .join(ReferralCode, Referral.referral_code_id == ReferralCode.id)
             .where(Referral.id == referral_id)
         )
     ).first()
     if not row: raise HTTPException(404, "Referral not found")
-    referral, referrer = row
+    referral, referrer, referral_code = row
+    submission_fields = await load_submission_fields(db, referral)
+    payment_proof_url = next(
+        (
+            field.value
+            for field in submission_fields
+            if field.category == PAYMENT and field.is_link
+        ),
+        None,
+    )
     return {
         "id": referral.id,
         "referrer": _user_summary(referrer),
+        "referral_code": referral_code.code,
         "candidate_email": referral.candidate_email,
         "candidate_telegram_handle": referral.candidate_telegram_handle,
         "status": referral.status,
         "created_at": referral.created_at,
+        "registered_at": referral.registered_at,
+        "verified_at": referral.verified_at,
+        "payment_proof_url": payment_proof_url,
+        "form_fields": [
+            {
+                "label": field.label,
+                "value": field.value,
+                "category": field.category,
+                "is_link": field.is_link,
+            }
+            for field in submission_fields
+        ],
     }
 
-@router.get("/affiliates/{user_id}/payout")
+@router.get("/affiliates/{user_id}/payout", response_model=PayoutRead)
 async def payout(user_id: int, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
     row = (await db.execute(select(PayoutDetails).where(PayoutDetails.user_id == user_id))).scalar_one_or_none()
     if not row: raise HTTPException(404, "Payout details not found")
