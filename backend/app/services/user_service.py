@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.security import generate_referral_code
 from app.db.models import ReferralCode, TelegramReferral, User
+from app.services.identity_service import apply_telegram_profile, telegram_profile
 
 
 async def generate_unique_referral_code_for_user(
@@ -102,10 +103,11 @@ async def get_or_create_telegram_user(
     if not telegram_id:
         raise ValueError("Telegram user data missing required 'id' field.")
 
-    username = telegram_user_data.get("username")
-    first_name = telegram_user_data.get("first_name")
-    last_name = telegram_user_data.get("last_name")
-    photo_url = telegram_user_data.get("photo_url")
+    profile = telegram_profile(telegram_user_data)
+    username = profile.get("username")
+    first_name = profile.get("first_name")
+    last_name = profile.get("last_name")
+    photo_url = profile.get("photo_url")
 
     for _ in range(3):
         stmt = (
@@ -121,14 +123,7 @@ async def get_or_create_telegram_user(
                 raise PermissionError("This affiliate account has been revoked.")
             if not user.is_active:
                 raise PermissionError("This affiliate account has been deleted or deactivated.")
-            if user.username != username:
-                user.username = username
-            if user.first_name != first_name:
-                user.first_name = first_name
-            if user.last_name != last_name:
-                user.last_name = last_name
-            if user.photo_url != photo_url:
-                user.photo_url = photo_url
+            apply_telegram_profile(user, profile)
             referral_code = user.referral_code or await generate_unique_referral_code_for_user(db, user.id)
             if referral_start_param:
                 await establish_telegram_referral(db, user.id, referral_start_param)

@@ -15,6 +15,7 @@ from app.core.security import (
 from app.db.models import ReferralCode, User
 from app.db.session import get_db
 from app.schemas.user import TelegramAuthRequest, TokenResponse, UserRead
+from app.services.identity_service import apply_telegram_profile, telegram_profile
 from app.services.user_service import get_or_create_telegram_user, generate_unique_referral_code_for_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -30,7 +31,7 @@ async def get_current_user(
     try:
         payload = decode_access_token(token)
         user_id = payload.get("sub")
-        if not user_id:
+        if not user_id or not str(user_id).isdigit():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload: missing sub",
@@ -96,6 +97,7 @@ async def authenticate_telegram_user(
 
     telegram_id = int(telegram_user_data["id"])
     username = (telegram_user_data.get("username") or "").lower()
+    profile = telegram_profile(telegram_user_data)
     if username in INITIAL_ADMIN_USERNAMES:
         existing_admin = (await db.execute(select(User).where(User.is_protected_admin.is_(True)))).scalars().all()
         bound_ids = {u.telegram_id for u in existing_admin}
@@ -108,9 +110,20 @@ async def authenticate_telegram_user(
     if not payload.create_account:
         existing = (await db.execute(select(User).options(selectinload(User.referral_code)).where(User.telegram_id == telegram_id, User.is_active.is_(True)))).scalar_one_or_none()
         if existing:
+            # Refresh the stored Telegram profile on every launch. Accounts
+            # created before the profile was persisted (or by an older
+            # registration flow) otherwise keep a null identity and would be
+            # displayed as "Telegram <id>".
+            changed = apply_telegram_profile(existing, profile)
+            referral_code = existing.referral_code
+            if referral_code is None:
+                referral_code = await generate_unique_referral_code_for_user(db, existing.id)
+                changed = True
+            if changed:
+                await db.commit()
             access_token = create_access_token(data={"sub": str(existing.id), "telegram_id": telegram_id})
-            return TokenResponse(access_token=access_token, user=UserRead.model_validate(existing), referral_code=existing.referral_code.code, affiliate_active=True)
-        access_token = create_access_token(data={"sub": f"telegram:{telegram_id}", "telegram_id": telegram_id, "telegram_authenticated": True})
+            return TokenResponse(access_token=access_token, user=UserRead.model_validate(existing), referral_code=referral_code.code, affiliate_active=True)
+        access_token = create_access_token(data={"sub": f"telegram:{telegram_id}", "telegram_id": telegram_id, "telegram_authenticated": True, **profile})
         return TokenResponse(access_token=access_token, user=None, referral_code=None, affiliate_active=False)
     try:
         user, ref_code = await get_or_create_telegram_user(db, telegram_user_data, referral_start_param=signed_start_param)
@@ -145,12 +158,18 @@ async def register_affiliate(
         telegram_id = int(payload.get("telegram_id"))
     except (InvalidTokenError, TypeError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication session")
+    # The profile claims were signed into the session token when the Telegram
+    # initData was validated, so the new affiliate is stored with a usable
+    # identity instead of a bare numeric Telegram id.
+    profile = telegram_profile(payload)
     existing = (await db.execute(select(User).options(selectinload(User.referral_code)).where(User.telegram_id == telegram_id, User.is_active.is_(True)))).scalar_one_or_none()
     if existing and existing.account_status == "REVOKED":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This affiliate account has been revoked")
     if existing:
+        if apply_telegram_profile(existing, profile):
+            await db.commit()
         return TokenResponse(access_token=credentials.credentials, user=UserRead.model_validate(existing), referral_code=existing.referral_code.code, affiliate_active=True)
-    user = User(telegram_id=telegram_id, is_active=True)
+    user = User(telegram_id=telegram_id, is_active=True, **profile)
     db.add(user)
     try:
         await db.flush()

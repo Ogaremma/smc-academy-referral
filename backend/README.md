@@ -98,6 +98,18 @@ predate the `answers` field. It is idempotent and never duplicates a referral:
 The response reports `created`, `enriched`, `unchanged`, and `unmatched` counts plus a per-response result.
 Pass `dry_run: true` to preview the outcome without writing.
 
+### Configuration diagnostics
+
+`POST /api/v1/webhooks/google-form/diagnostics` (same `X-Webhook-Secret` auth, read-only) is the check the
+Apps Script runs before importing. It confirms the shared secret, reports how many users, affiliates,
+referrals, and webhook deliveries are stored (deliveries grouped by status), resolves a referral code
+(or a referral link) to its owning affiliate, and returns the pre-fill URL built from
+`GOOGLE_FORM_REFERRAL_ENTRY_ID`.
+
+Attribution during a live delivery uses the same rules as the reconciliation: the referral code on the
+submission first, then a code embedded in a referral link or free-form answer. Candidate email/Telegram
+fall back to the submitted answers, so a registration is never stored without its identity.
+
 ---
 
 ## System Data Flow

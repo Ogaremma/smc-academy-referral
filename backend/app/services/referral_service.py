@@ -10,6 +10,11 @@ from app.config import settings
 from app.db.models import Referral, ReferralCode, TelegramReferral, WebhookLog
 from app.schemas.referral import DashboardResponse, ReferralActivityItem
 from app.schemas.webhook import GoogleFormWebhookPayload
+from app.services.submission_service import (
+    derive_identity,
+    parse_submission_fields,
+    resolve_payload_referral_code,
+)
 
 
 def build_personal_referral_link(code: str) -> str:
@@ -133,9 +138,24 @@ async def process_google_form_webhook(
         await db.commit()
         return True, "Duplicate response ID. Referral already credited.", existing_referral.id
 
-    # 2. Validate Referral Code
+    # 2. Resolve and validate the referral code. The code is extracted from the
+    # submission (or from a referral link embedded in an answer) so a link or
+    # free-form answer can never silently lose the attribution.
+    code_value = resolve_payload_referral_code(raw_payload_str, payload.referral_code)
+    if not code_value:
+        missing_log = WebhookLog(
+            google_form_response_id=payload.response_id,
+            raw_payload=raw_payload_str,
+            status="invalid_code",
+            error_message="Submission carries no referral code.",
+            processed_at=now,
+        )
+        db.add(missing_log)
+        await db.commit()
+        return False, "Submission carries no referral code.", None
+
     stmt_code = select(ReferralCode).where(
-        ReferralCode.code == payload.referral_code.strip().upper(),
+        ReferralCode.code == code_value,
         ReferralCode.is_active.is_(True),
     )
     res_code = await db.execute(stmt_code)
@@ -147,20 +167,24 @@ async def process_google_form_webhook(
             google_form_response_id=payload.response_id,
             raw_payload=raw_payload_str,
             status="invalid_code",
-            error_message=f"Referral code '{payload.referral_code}' not found or inactive.",
+            error_message=f"Referral code '{code_value}' not found or inactive.",
             processed_at=now,
         )
         db.add(invalid_log)
         await db.commit()
-        return False, f"Invalid or inactive referral code: '{payload.referral_code}'", None
+        return False, f"Invalid or inactive referral code: '{code_value}'", None
 
-    # 3. Create verified referral record
+    # 3. Create verified referral record. Candidate identity falls back to the
+    # submitted answers when the envelope did not carry an email/handle, so the
+    # affiliate always sees who registered through their link.
+    submission_fields = parse_submission_fields(raw_payload_str)
+    derived_email, derived_telegram = derive_identity(submission_fields)
     new_referral = Referral(
         referral_code_id=referral_code_record.id,
         referrer_id=referral_code_record.user_id,
         google_form_response_id=payload.response_id,
-        candidate_email=payload.candidate_email,
-        candidate_telegram_handle=payload.candidate_telegram_handle,
+        candidate_email=payload.candidate_email or derived_email,
+        candidate_telegram_handle=payload.candidate_telegram_handle or derived_telegram,
         status="verified",
         registered_at=submitted_at,
         verified_at=now,

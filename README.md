@@ -91,6 +91,7 @@ smcacademyreferral/
 | `GET`  | `/api/v1/admin/referrals/{id}` | Full referral detail, including payment proof (admin) |
 | `GET`  | `/api/v1/admin/affiliates/{id}/payout` | Affiliate payout details (admin) |
 | `POST` | `/api/v1/webhooks/google-form/reconcile` | Idempotent backfill of historical form submissions (Apps Script) |
+| `POST` | `/api/v1/webhooks/google-form/diagnostics` | Apps Script wiring check: secret, database, referral code, delivery counts |
 
 ## Visibility of submitted form data
 
@@ -110,8 +111,15 @@ uploads as Google Drive links) and the backend stores the complete payload in
 ## Historical submission reconciliation
 
 Registrations that arrived before the webhook carried the answers are recovered
-with `POST /api/v1/webhooks/google-form/reconcile`. The Apps Script exposes two
-entry points for this:
+with `POST /api/v1/webhooks/google-form/reconcile`. Before the first import, run
+`verifyProductionSetup()` once from the Apps Script editor: it confirms
+`BACKEND_WEBHOOK_URL` and `WEBHOOK_SECRET` against the live backend, reports how
+many webhook deliveries have ever been recorded, resolves a referral code, and
+prints every form question with its pre-fill entry id. Run
+`installFormSubmitTrigger()` once as well: a live submission only reaches the
+backend through an installable `onFormSubmit` trigger, because a simple trigger
+cannot call `UrlFetchApp`. The Apps Script then exposes two entry points for the
+history import:
 
 1. `previewHistoricalSubmissions()` — dry run; reports what would change.
 2. `backfillHistoricalSubmissions()` — applies the changes.

@@ -34,6 +34,7 @@ from app.services.submission_service import (
     answers_present,
     derive_identity,
     parse_submission_fields,
+    resolve_payload_referral_code,
 )
 
 CREATED = "created"
@@ -167,7 +168,7 @@ async def reconcile_submission(
             "Added the missing Google Form answers to the existing referral.",
         )
 
-    code_value = (payload.referral_code or "").strip().upper()
+    code_value = resolve_payload_referral_code(raw_payload, payload.referral_code)
     if not code_value:
         return ReconcileOutcome(
             payload.response_id,

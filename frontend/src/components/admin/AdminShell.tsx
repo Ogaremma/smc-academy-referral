@@ -112,7 +112,9 @@ export function AdminShell({
         )}
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{adminIdentity(admin)}</p>
-          <p className="truncate text-xs text-zinc-500">{adminSecondaryIdentity(admin)}</p>
+          {adminSecondaryIdentity(admin) && (
+            <p className="truncate text-xs text-zinc-500">{adminSecondaryIdentity(admin)}</p>
+          )}
         </div>
       </div>
       <button

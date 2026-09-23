@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -14,6 +15,37 @@ from app.core.exceptions import InvalidTokenError, TelegramAuthError, WebhookAut
 
 # Characters allowed for referral code: Uppercase alphanumeric excluding ambiguous (0, O, 1, I)
 REFERRAL_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+# Referral codes are shared as bare codes (SMC-7FELG5), inside the personal
+# referral link (https://.../r/SMC-7FELG5) or inside a free-form answer. The
+# boundaries keep unrelated text such as "smc-academy-referral.onrender.com"
+# from being read as a referral code.
+REFERRAL_CODE_PATTERN = re.compile(
+    r"(?<![A-Z0-9-])SMC-[A-Z0-9]{4,8}(?![A-Z0-9-])", re.IGNORECASE
+)
+
+
+def extract_referral_code(value: Optional[str]) -> str:
+    """Return the referral code contained in a free-form value, uppercased.
+
+    Registrations often carry the code as part of the shared referral link or
+    of a longer answer, so the code is extracted before it is looked up instead
+    of requiring the raw value to be an exact code. Values without an embedded
+    code are returned trimmed and uppercased so the lookup still fails loudly.
+    """
+    text = value.strip() if isinstance(value, str) else ""
+    if not text:
+        return ""
+    match = REFERRAL_CODE_PATTERN.search(text)
+    if match:
+        return match.group(0).upper()
+    return text.upper()
+
+
+def is_referral_code(value: Optional[str]) -> bool:
+    """True when the value is exactly one referral code, not a longer string."""
+    text = value.strip() if isinstance(value, str) else ""
+    return bool(text) and REFERRAL_CODE_PATTERN.fullmatch(text) is not None
 
 
 def generate_referral_code(prefix: str = "SMC-", length: int = 6) -> str:

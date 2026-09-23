@@ -19,6 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Referral, WebhookLog
+from app.core.security import (
+    REFERRAL_CODE_PATTERN,
+    extract_referral_code,
+    is_referral_code,
+)
 
 REGISTRATION = "registration"
 PAYMENT = "payment"
@@ -363,3 +368,31 @@ def derive_identity(
     email = find_value(materialized, EMAIL_MATCH, substring=True)
     telegram = find_value(materialized, TELEGRAM_MATCH, substring=True)
     return email, telegram
+
+
+def resolve_referral_code(
+    explicit: Optional[str], fields: Sequence[SubmissionField]
+) -> str:
+    """Attribute a submission with the strongest evidence available.
+
+    Order of evidence: the referral code carried by the submission itself, then
+    a referral code embedded in any answer (the shared referral link, the
+    ``/r/<code>`` URL parameter, or a longer free-form answer). Returns an empty
+    string when the submission carries no code at all, so the caller can report
+    it as unattributable instead of guessing.
+    """
+    code = extract_referral_code(explicit)
+    if is_referral_code(code):
+        return code
+    for field in fields:
+        match = REFERRAL_CODE_PATTERN.search(field.value)
+        if match:
+            return match.group(0).upper()
+    return code
+
+
+def resolve_payload_referral_code(
+    raw_payload: Optional[str], explicit: Optional[str]
+) -> str:
+    """Resolve the referral code from a stored payload and its envelope field."""
+    return resolve_referral_code(explicit, parse_submission_fields(raw_payload))

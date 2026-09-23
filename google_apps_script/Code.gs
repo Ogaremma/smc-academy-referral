@@ -5,10 +5,21 @@
  *   BACKEND_WEBHOOK_URL  full webhook URL, e.g.
  *                        https://smc-academy-referral.onrender.com/api/v1/webhooks/google-form
  *   WEBHOOK_SECRET       shared secret sent as the X-Webhook-Secret header
+ *   FORM_ID              optional: the registration form id, only needed when
+ *                        this script is not bound to the registration form
  *
  * Historical registrations that arrived before the webhook carried the Google
  * Form answers can be re-imported once with backfillHistoricalSubmissions().
  * Run previewHistoricalSubmissions() first to see the report without writing.
+ *
+ * Setup / recovery entry points, in order:
+ *   1. verifyProductionSetup()          - confirms the backend URL + secret and
+ *                                         prints the form questions and entry ids
+ *   2. installFormSubmitTrigger()       - installs the installable onFormSubmit
+ *                                         trigger (required: a simple trigger
+ *                                         cannot call the backend)
+ *   3. previewHistoricalSubmissions()   - dry run of the historical recovery
+ *   4. backfillHistoricalSubmissions()  - applies the recovery
  */
 
 const REFERRAL_QUESTION_HINTS = ["referral", "referred by", "referrer"];
@@ -19,17 +30,128 @@ const BACKFILL_BATCH_SIZE = 50;
 
 function onFormSubmit(e) {
   if (!e || !e.response) {
-    throw new Error("This handler requires a Form-bound onFormSubmit event.");
+    throw new Error(
+      "This handler requires a Form-bound installable onFormSubmit trigger. " +
+        "Run installFormSubmitTrigger() once from the script editor."
+    );
   }
 
   const payload = buildPayload(e.response);
   if (!payload.referral_code) {
-    console.log("Submission has no referral code; no referral webhook was sent.");
+    console.log(
+      "Submission " + payload.response_id +
+        " has no referral code in any answer; no referral webhook was sent."
+    );
     return;
   }
 
   postJson(webhookUrl(), payload);
-  console.log("Referral webhook accepted for response " + payload.response_id + ".");
+  console.log(
+    "Referral webhook accepted for response " + payload.response_id +
+      " (code " + payload.referral_code + ", " + payload.answers.length +
+      " answers)."
+  );
+}
+
+/**
+ * Install (or reinstall) the installable form-submit trigger.
+ *
+ * Apps Script simple triggers cannot call UrlFetchApp, so the registration
+ * webhook only fires when this installable trigger exists. Safe to run more
+ * than once: previous onFormSubmit triggers are removed first.
+ */
+function installFormSubmitTrigger() {
+  const form = getTargetForm();
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    if (trigger.getHandlerFunction() === "onFormSubmit") {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  const trigger = ScriptApp.newTrigger("onFormSubmit").forForm(form).onFormSubmit().create();
+  const summary = {
+    formTitle: form.getTitle(),
+    formId: form.getId(),
+    replacedExistingTriggers: removed,
+    triggerId: trigger.getUniqueId(),
+  };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+/**
+ * One-call check of the production wiring.
+ *
+ * Confirms the configured backend URL and secret against the live backend,
+ * reports how many webhook deliveries have ever been recorded, resolves a
+ * referral code, and prints every form question with its pre-fill entry id so
+ * the referral field can be verified.
+ */
+function verifyProductionSetup(referralCode) {
+  const codeToCheck = (referralCode || "SMC-7FELG5").toString().trim();
+  const report = { checkedAt: new Date().toISOString(), referralCodeChecked: codeToCheck };
+
+  try {
+    report.backendWebhookUrl = webhookUrl();
+  } catch (error) {
+    report.backendWebhookUrl = "MISSING: " + error.message;
+  }
+  const secret = PropertiesService.getScriptProperties().getProperty("WEBHOOK_SECRET");
+  report.webhookSecretSet = Boolean(secret);
+  report.webhookSecretLength = secret ? secret.length : 0;
+
+  report.triggerInstalled = ScriptApp.getProjectTriggers().some(function (trigger) {
+    return trigger.getHandlerFunction() === "onFormSubmit";
+  });
+
+  try {
+    report.backend = postJson(diagnosticsUrl(), { referral_code: codeToCheck });
+  } catch (error) {
+    report.backend = { error: error.message };
+  }
+
+  const form = getTargetForm();
+  const items = form.getItems();
+  report.form = {
+    title: form.getTitle(),
+    formId: form.getId(),
+    responseCount: form.getResponses().length,
+    questions: items.map(function (item) {
+      const title = String(item.getTitle() || "");
+      const isReferral = REFERRAL_QUESTION_HINTS.some(function (hint) {
+        return title.toLowerCase().indexOf(hint) !== -1;
+      });
+      return {
+        entryId: "entry." + item.getId(),
+        title: title,
+        type: String(item.getType()),
+        looksLikeReferralQuestion: isReferral,
+      };
+    }),
+  };
+
+  const configuredEntryId = report.backend && report.backend.referral_entry_id;
+  if (configuredEntryId) {
+    const match = report.form.questions.filter(function (question) {
+      return question.entryId === configuredEntryId;
+    });
+    report.referralEntryIdCheck = {
+      configuredEntryId: configuredEntryId,
+      foundInForm: match.length > 0,
+      questionTitle: match.length > 0 ? match[0].title : null,
+    };
+  }
+
+  const referralQuestions = report.form.questions.filter(function (question) {
+    return question.looksLikeReferralQuestion;
+  });
+  if (referralQuestions.length > 0) {
+    report.suspectedReferralQuestions = referralQuestions;
+  }
+
+  console.log(JSON.stringify(report, null, 2));
+  return report;
 }
 
 /**
@@ -46,10 +168,7 @@ function previewHistoricalSubmissions() {
 }
 
 function runHistoricalBackfill(dryRun) {
-  const form = FormApp.getActiveForm();
-  if (!form) {
-    throw new Error("Run this from a script bound to the registration form.");
-  }
+  const form = getTargetForm();
   const responses = form.getResponses();
   const counts = { total: 0, created: 0, enriched: 0, unchanged: 0, unmatched: 0 };
   const details = [];
@@ -69,9 +188,44 @@ function runHistoricalBackfill(dryRun) {
     });
   }
 
-  const report = { dryRun: dryRun, counts: counts, details: details };
+  // Unmatched responses are reported explicitly with the exact reason so an
+  // unattributable registration is never silently discarded.
+  const unmatchedReasons = details
+    .filter(function (item) {
+      return item.action === "unmatched";
+    })
+    .map(function (item) {
+      return item.response_id + ": " + item.reason;
+    });
+
+  const report = {
+    dryRun: dryRun,
+    counts: counts,
+    unmatchedReasons: unmatchedReasons,
+    details: details,
+  };
   console.log(JSON.stringify(report, null, 2));
   return report;
+}
+
+/** The registration form this script operates on. */
+function getTargetForm() {
+  try {
+    const active = FormApp.getActiveForm();
+    if (active) {
+      return active;
+    }
+  } catch (error) {
+    // Not bound to a form; fall through to the explicit FORM_ID property.
+  }
+  const formId = PropertiesService.getScriptProperties().getProperty("FORM_ID");
+  if (formId) {
+    return FormApp.openById(formId);
+  }
+  throw new Error(
+    "Run this from a script bound to the registration form, or set the " +
+      "FORM_ID script property to the registration form id."
+  );
 }
 
 /** Build the webhook payload for a single form response. */
@@ -157,27 +311,39 @@ function fileUploadLinks(raw) {
 }
 
 function findReferralCode(answers) {
+  // 1. A question that explicitly asks for the referral code / link.
   for (let i = 0; i < answers.length; i++) {
-    const question = answers[i].question.toLowerCase();
+    const question = String(answers[i].question || "").toLowerCase();
     const matchesHint = REFERRAL_QUESTION_HINTS.some(function (hint) {
       return question.indexOf(hint) !== -1;
     });
     if (matchesHint) {
-      const value = String(answers[i].answer || "").trim();
-      if (value) {
-        return value;
+      const code = extractReferralCode(answers[i].answer);
+      if (code) {
+        return code;
       }
     }
   }
   // The referral link pre-fills the code, so it may sit in a column we do not
-  // recognise by title. Fall back to scanning for the code pattern.
+  // recognise by title, or inside a longer free-form answer. Scan every answer
+  // for the code pattern so a link or a pasted URL still credits the affiliate.
   for (let a = 0; a < answers.length; a++) {
-    const match = String(answers[a].answer || "").match(REFERRAL_CODE_PATTERN);
-    if (match) {
-      return match[0];
+    const code = extractReferralCode(answers[a].answer);
+    if (code) {
+      return code;
     }
   }
   return "";
+}
+
+/** Return the SMC referral code contained in a free-form value, or "". */
+function extractReferralCode(value) {
+  const text = String(value === null || value === undefined ? "" : value).trim();
+  if (!text) {
+    return "";
+  }
+  const match = text.match(REFERRAL_CODE_PATTERN);
+  return match ? match[0].toUpperCase() : "";
 }
 
 function findKnownAnswer(answers, titles) {
@@ -219,6 +385,10 @@ function webhookUrl() {
 
 function reconcileUrl() {
   return webhookUrl().replace(/\/+$/, "").replace(/\/google-form$/, "/google-form/reconcile");
+}
+
+function diagnosticsUrl() {
+  return webhookUrl().replace(/\/+$/, "").replace(/\/google-form$/, "/google-form/diagnostics");
 }
 
 function postJson(url, body) {
