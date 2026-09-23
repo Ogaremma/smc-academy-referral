@@ -23,6 +23,7 @@ from app.services.referral_service import (
     build_google_form_prefill_url,
     process_google_form_webhook,
 )
+from app.services.identity_service import count_users_missing_telegram_profile
 from app.services.reconciliation_service import reconcile_submissions
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
@@ -123,6 +124,7 @@ async def google_form_diagnostics(
         "affiliates": await db.scalar(select(func.count(ReferralCode.id))) or 0,
         "referrals": await db.scalar(select(func.count(Referral.id))) or 0,
         "webhook_logs": await db.scalar(select(func.count(WebhookLog.id))) or 0,
+        "users_missing_profile": await count_users_missing_telegram_profile(db),
     }
     status_rows = (
         await db.execute(

@@ -92,6 +92,31 @@ smcacademyreferral/
 | `GET`  | `/api/v1/admin/affiliates/{id}/payout` | Affiliate payout details (admin) |
 | `POST` | `/api/v1/webhooks/google-form/reconcile` | Idempotent backfill of historical form submissions (Apps Script) |
 | `POST` | `/api/v1/webhooks/google-form/diagnostics` | Apps Script wiring check: secret, database, referral code, delivery counts |
+| `POST` | `/api/v1/admin/affiliates/{id}/refresh-telegram` | Refresh one affiliate's Telegram profile from Bot API `getChat` (admin) |
+| `POST` | `/api/v1/admin/telegram/refresh-profiles` | One-shot backfill of missing Telegram profiles (admin) |
+
+## Telegram identity
+
+Dashboard identities follow one fixed order: `@username`, then the Telegram
+name (full name, then first name), and only as a last resort the numeric
+Telegram id. The stored profile is refreshed from the validated Mini App
+`initData` every time an existing user opens the app, so an account created
+before the profile was persisted repairs itself on its next launch.
+
+For accounts that have not opened the Mini App since the fix, an administrator
+can refresh the profile from the Telegram Bot API:
+
+* `POST /api/v1/admin/affiliates/{id}/refresh-telegram` refreshes one account
+  and returns `404` when Telegram cannot resolve that chat.
+* `POST /api/v1/admin/telegram/refresh-profiles` is a one-shot backfill over
+  every active account whose username and names are all empty. Pass
+  `{"dry_run": true}` to preview it. The response reports `checked`,
+  `refreshed`, `unchanged`, `unresolved` and `failures`.
+
+Telegram is the only source of profile data: the `getChat` result is stored as
+returned and nothing is invented. `getChat` only resolves chats the bot has
+already seen (the user must have started the bot); any account Telegram cannot
+resolve keeps the numeric id fallback.
 
 ## Visibility of submitted form data
 

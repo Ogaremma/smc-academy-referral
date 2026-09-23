@@ -1,4 +1,5 @@
 import json
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, func
@@ -6,9 +7,16 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_admin
 from app.api.payout import PayoutRead
+from app.config import settings
 from app.db.models import AuditLog, User, Referral, ReferralCode, PayoutDetails, Broadcast
 from app.db.session import AsyncSessionLocal
 from app.services.broadcast_service import deliver_broadcast
+from app.services.identity_service import (
+    TelegramProfileLookupError,
+    apply_telegram_profile,
+    fetch_telegram_chat_profile,
+    refresh_missing_telegram_profiles,
+)
 from app.services.submission_service import (
     PAYMENT,
     load_submission_fields,
@@ -349,3 +357,52 @@ async def add_admin(user_id: int, current=Depends(get_current_admin), db: AsyncS
     target.is_admin = True
     await _audit(db, current[0], "administrator_added", target)
     return {"status": "ok"}
+
+
+class TelegramRefreshRequest(BaseModel):
+    dry_run: bool = False
+
+
+@router.post("/affiliates/{user_id}/refresh-telegram")
+async def refresh_affiliate_telegram(user_id: int, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    """Refresh one affiliate's stored Telegram profile from Bot API ``getChat``."""
+    if not settings.BOT_TOKEN:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Telegram Bot API token is not configured")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Affiliate not found")
+    try:
+        profile = await fetch_telegram_chat_profile(user.telegram_id, bot_token=settings.BOT_TOKEN)
+    except TelegramProfileLookupError as error:
+        raise HTTPException(404, f"Telegram profile unavailable: {error}")
+    except httpx.HTTPError as error:
+        raise HTTPException(502, f"Telegram request failed: {type(error).__name__}")
+    changed = apply_telegram_profile(user, profile)
+    if changed:
+        await db.commit()
+    await _audit(db, current[0], "affiliate_telegram_refreshed", user, {"changed": changed, "fields": sorted(profile)})
+    return {**_user_summary(user), "refreshed": changed, "profile_fields": sorted(profile)}
+
+
+@router.post("/telegram/refresh-profiles")
+async def refresh_telegram_profiles(payload: TelegramRefreshRequest | None = None, current=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    """One-shot backfill of Telegram profiles for accounts stored as numeric ids."""
+    if not settings.BOT_TOKEN:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Telegram Bot API token is not configured")
+    dry_run = bool(payload and payload.dry_run)
+    summary = await refresh_missing_telegram_profiles(db, bot_token=settings.BOT_TOKEN, dry_run=dry_run)
+    await _audit(
+        db,
+        current[0],
+        "telegram_profiles_refreshed",
+        None,
+        {
+            "checked": summary["checked"],
+            "refreshed": summary["refreshed"],
+            "unchanged": summary["unchanged"],
+            "unresolved": summary["unresolved"],
+            "failures": summary["failures"],
+            "dry_run": dry_run,
+        },
+    )
+    return summary

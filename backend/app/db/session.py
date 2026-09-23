@@ -7,11 +7,26 @@ from sqlalchemy.ext.asyncio import (
 
 from app.config import settings
 
-engine_kwargs = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, **engine_kwargs)
+def build_engine_kwargs(database_url: str) -> dict:
+    """Return the engine options appropriate for the configured database.
+
+    SQLite needs the thread-flag override. A server-managed PostgreSQL
+    connection is closed by the server once it has been idle, so the pool must
+    validate a connection before handing it to a request and recycle
+    connections before they age out. Without this, the first request after an
+    idle period (the Apps Script diagnostics call that opens a recovery run)
+    is handed a dead connection and fails with an unhandled ``OperationalError``
+    (HTTP 500), while the very next request succeeds.
+    """
+    if database_url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+    return {"pool_pre_ping": True, "pool_recycle": 1800}
+
+
+engine = create_async_engine(
+    settings.DATABASE_URL, echo=False, **build_engine_kwargs(settings.DATABASE_URL)
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

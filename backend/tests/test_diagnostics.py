@@ -4,6 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import extract_referral_code, is_referral_code
+from app.db.models import User
 from tests.conftest import TEST_WEBHOOK_SECRET, create_telegram_init_data
 
 DIAGNOSTICS_URL = "/api/v1/webhooks/google-form/diagnostics"
@@ -81,3 +82,32 @@ async def test_diagnostics_reports_unknown_codes(
     assert payload["referral_code"]["exists"] is False
     assert "does not exist" in payload["referral_code"]["reason"]
     assert payload["webhook_log_statuses"] == {}
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_counts_accounts_missing_a_telegram_profile(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """The wiring check reports how many accounts still need an identity backfill."""
+    db_session.add_all(
+        [
+            User(telegram_id=940010, is_active=True, account_status="ACTIVE"),
+            User(
+                telegram_id=940011,
+                username="has_name",
+                first_name="Has",
+                is_active=True,
+                account_status="ACTIVE",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        DIAGNOSTICS_URL,
+        headers={"X-Webhook-Secret": TEST_WEBHOOK_SECRET},
+        json={},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["counts"]["users_missing_profile"] == 1
