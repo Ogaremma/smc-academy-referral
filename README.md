@@ -121,6 +121,9 @@ backend through an installable `onFormSubmit` trigger, because a simple trigger
 cannot call `UrlFetchApp`. The Apps Script then exposes two entry points for the
 history import:
 
+`runFullRecovery()` runs all of the above in order (verify, install the trigger,
+preview, import, preview again) and prints one combined report.
+
 1. `previewHistoricalSubmissions()` — dry run; reports what would change.
 2. `backfillHistoricalSubmissions()` — applies the changes.
 

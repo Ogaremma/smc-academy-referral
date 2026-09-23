@@ -20,6 +20,8 @@
  *                                         cannot call the backend)
  *   3. previewHistoricalSubmissions()   - dry run of the historical recovery
  *   4. backfillHistoricalSubmissions()  - applies the recovery
+ *
+ * runFullRecovery() runs all four steps in order and prints one combined report.
  */
 
 const REFERRAL_QUESTION_HINTS = ["referral", "referred by", "referrer"];
@@ -160,6 +162,27 @@ function verifyProductionSetup(referralCode) {
  */
 function backfillHistoricalSubmissions() {
   return runHistoricalBackfill(false);
+}
+
+/**
+ * One-call recovery: verify the wiring, install the submit trigger, preview the
+ * historical import, import it, then preview again to confirm the result.
+ *
+ * Run this once from the Apps Script editor. It never fabricates a referral:
+ * submissions whose referral code cannot be resolved are reported as unmatched.
+ */
+function runFullRecovery(referralCode) {
+  const report = {
+    startedAt: new Date().toISOString(),
+    setup: verifyProductionSetup(referralCode),
+    trigger: installFormSubmitTrigger(),
+    previewBefore: previewHistoricalSubmissions(),
+    backfill: backfillHistoricalSubmissions(),
+    previewAfter: previewHistoricalSubmissions(),
+  };
+  report.finishedAt = new Date().toISOString();
+  console.log("FULL RECOVERY REPORT\n" + JSON.stringify(report, null, 2));
+  return report;
 }
 
 /** Dry run of the backfill: reports what would change without writing. */
